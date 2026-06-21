@@ -39,6 +39,8 @@ local DEFAULT_END_TO_START_DELAY_MS = 2000
 local DEFAULT_LOADOUT_END_SPACING_MS = 250
 local DEFAULT_LOADOUT_START_SPACING_MS = 750
 local APPLY_CONFIRM_SECONDS = 24
+local TOP_BAR_TARGET_X = 520
+local TOP_BAR_ACTION_X = 580
 local discovery = {
   local_name = 'unknown',
   version = 'unknown',
@@ -1741,6 +1743,21 @@ local function drawCurrentLoadoutText()
   end
 end
 
+local function drawMutedText(text)
+  ImGui.PushStyleColor(ImGuiCol.Text, 0.68, 0.72, 0.78, 1.0)
+  ImGui.Text(text)
+  ImGui.PopStyleColor()
+end
+
+local function drawAccentButton(label)
+  ImGui.PushStyleColor(ImGuiCol.Button, 0.22, 0.42, 0.25, 1.0)
+  ImGui.PushStyleColor(ImGuiCol.ButtonHovered, 0.30, 0.55, 0.34, 1.0)
+  ImGui.PushStyleColor(ImGuiCol.ButtonActive, 0.18, 0.35, 0.21, 1.0)
+  local clicked = ImGui.Button(label)
+  ImGui.PopStyleColor(3)
+  return clicked
+end
+
 local function drawLoadoutControls()
   local entries = loadoutEntries()
   local loadout = selectedLoadout()
@@ -1750,9 +1767,9 @@ local function drawLoadoutControls()
   ImGui.Text('Current Loadout')
   ImGui.SameLine(120)
   drawCurrentLoadoutText()
-
+  ImGui.SameLine(TOP_BAR_TARGET_X)
   ImGui.Text('Target Loadout')
-  ImGui.SameLine(120)
+  ImGui.SameLine(TOP_BAR_TARGET_X + 105)
 
   if #entries == 0 then
     ImGui.Text('none configured')
@@ -1780,7 +1797,7 @@ local function drawLoadoutControls()
     logAction('TODO', 'Manage Loadouts is not implemented yet')
   end
 
-  ImGui.SameLine(560)
+  ImGui.SetCursorPosX(TOP_BAR_ACTION_X)
   ImGui.Text(changeCountText(changeCount) .. ' pending')
   ImGui.SameLine()
 
@@ -1790,7 +1807,7 @@ local function drawLoadoutControls()
 
   ImGui.SameLine()
 
-  if ImGui.Button('Apply ' .. changeCountText(changeCount)) then
+  if drawAccentButton('Apply ' .. changeCountText(changeCount)) then
     applyPendingChanges()
   end
 end
@@ -1971,6 +1988,11 @@ local function drawStatusRow(characterName)
   end
 
   ImGui.TableNextRow(ImGuiTableRowFlags.None, ImGui.GetFrameHeightWithSpacing())
+
+  if pending then
+    ImGui.TableSetBgColor(ImGuiTableBgTarget.RowBg0, 0.35, 0.27, 0.10, 0.40)
+  end
+
   ImGui.TableNextColumn()
   ImGui.AlignTextToFramePadding()
 
@@ -2007,7 +2029,7 @@ end
 
 local function drawStatusTable(group, peers)
   local tableId = 'status_table_' .. tostring(group.key or group.label or group.peers or 'group')
-  local flags = bit32.bor(ImGuiTableFlags.Borders, ImGuiTableFlags.RowBg, ImGuiTableFlags.SizingFixedFit, ImGuiTableFlags.NoHostExtendX)
+  local flags = bit32.bor(ImGuiTableFlags.BordersOuter, ImGuiTableFlags.BordersV, ImGuiTableFlags.RowBg, ImGuiTableFlags.SizingFixedFit, ImGuiTableFlags.NoHostExtendX)
 
   if ImGui.BeginTable(tableId, 4, flags, ImVec2(STATUS_TABLE_WIDTH, 0)) then
     ImGui.TableSetupColumn('Character', ImGuiTableColumnFlags.WidthFixed, STATUS_TABLE_CHARACTER_WIDTH)
@@ -2025,24 +2047,22 @@ local function drawStatusTable(group, peers)
 end
 
 local function drawStatusOverview()
-  ImGui.Text(config.name or 'PPQ KissAssist Manager')
   drawLoadoutControls()
-  ImGui.Text('Status overview')
   ImGui.Separator()
 
   for _, group in ipairs(currentGroupViews()) do
     local peers = group.peers or {}
 
     ImGui.Text(group.label or group.peers or 'Group')
-    ImGui.SameLine(150)
-    ImGui.Text('Peers: ' .. tostring(#peers))
+    ImGui.SameLine(170)
+    drawMutedText('Peers: ' .. tostring(#peers))
     if group.main_assist then
-      ImGui.SameLine(260)
-      ImGui.Text('MA: ' .. group.main_assist)
+      ImGui.SameLine(STATUS_TABLE_WIDTH - 130)
+      drawMutedText('MA: ' .. group.main_assist)
     end
     if group.control then
-      ImGui.SameLine(260)
-      ImGui.Text('Control: ' .. group.control)
+      ImGui.SameLine(STATUS_TABLE_WIDTH - 130)
+      drawMutedText('Control: ' .. group.control)
     end
 
     if #peers == 0 then
@@ -2254,7 +2274,13 @@ local function render()
       showDebug = not showDebug
     end
 
-    ImGui.Text('Status uses PPQ reporters via DanNet. Target changes are staged until Apply is clicked.')
+    ImGui.SameLine()
+
+    if ImGui.Button('Close Script') then
+      terminate = true
+    end
+
+    drawMutedText('Reporter source: PPQKA via DanNet')
     ImGui.Separator()
 
     if showDebug then
@@ -2290,9 +2316,6 @@ local function render()
       ImGui.Separator()
     end
 
-    if ImGui.Button('Close Script') then
-      terminate = true
-    end
   end
 
   ImGui.End()
