@@ -1,6 +1,6 @@
 # Architecture
 
-PPQ KissAssist Manager is intended to be a small MacroQuest Lua application with an ImGui front end, a config-driven roster/group model, a status layer, and a command dispatch layer for DanNet/KissAssist commands.
+PPQ KissAssist Manager is intended to be a small MacroQuest Lua application with an ImGui front end, a companion per-client reporter, a config-driven loadout/profile model, and a command dispatch layer for DanNet/KissAssist commands.
 
 ## Components
 
@@ -24,6 +24,12 @@ The config defines:
 
 The first config format is a Lua table returned from a module. This avoids adding a parser dependency in MacroQuest Lua while keeping project behavior data separate from core logic.
 
+### Reporter
+
+`ppq_ka_reporter.lua` runs on each EQ client. It reads local MacroQuest TLOs for that client, builds one coherent status payload, and publishes it to the global MQ variable `PPQKA_Status`.
+
+The manager attempts to start the reporter on all known DanNet peers with `/lua run ppqka/ppq_ka_reporter`. The reporter has a heartbeat guard so repeated start attempts should not create duplicate active reporters.
+
 ### Command Builder
 
 The command builder expands command templates such as:
@@ -36,13 +42,13 @@ The MVP will build strings from templates, show those strings in the UI where us
 
 ### Command Dispatcher
 
-The status layer uses local MacroQuest TLOs directly for the controller client and DanNet `/dquery` probes for each peer. Normal status polling queries each client's reported macro state (`Macro.Name`, `Macro.Paused`, best-effort `Macro.Variable[IniFile]`) plus group state (`Group.Members`, `Group.Leader.Name`, `Group.MainAssist.Name`, and `Group.Member[0..5].Name`). Applying staged target behavior changes uses a small queued dispatcher to send real per-character `/dex` commands without blocking ImGui rendering.
+The status layer reads each client's `PPQKA_Status` through DanNet `/dquery`. The payload includes the client's macro state, best-effort KissAssist INI, group leader, main assist, and group roster. Applying staged target behavior changes uses a small queued dispatcher to send real per-character `/dex` commands without blocking ImGui rendering.
 
 The command queue uses `mq.gettime()` millisecond timing. Before scheduling a profile or loadout action, it clears pending queued commands for the affected characters and leaves a delay between `/end` and `/mac kissassist`.
 
 Current scaffold behavior:
 
-- Read-only DanNet status query dispatch.
+- Reporter auto-start and read-only DanNet status query dispatch.
 - Live EQ group display by group leader, plus a final `Ungrouped` bucket.
 - Client-reported KissAssist running/paused status and best-effort active INI/profile display.
 - Per-character target behavior dropdowns that stage `No Change`, `Manual`, or a configured profile.
@@ -59,15 +65,12 @@ The first desired live status view is:
 - KissAssist running, not running, or paused.
 - Current active profile.
 
-Later versions may use:
-
-- A lightweight per-character agent script.
-- Explicit heartbeat/status messages.
+Later versions may refine the reporter payload, replace the global-variable handoff if a cleaner transport appears, or add explicit profile/loadout persistence.
 
 ## Data Flow
 
 ```text
-DanNet peers -> live EQ group queries -> compact status table -> debug/details lower in the window
+DanNet peers -> PPQ reporter status payloads -> compact status table -> debug/details lower in the window
 Lua config -> saved profile choices and command groups -> staged target behavior -> command dispatcher
 ```
 

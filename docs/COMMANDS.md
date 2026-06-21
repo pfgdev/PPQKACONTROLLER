@@ -2,29 +2,25 @@
 
 This document records the intended command patterns for DanNet and KissAssist control/status.
 
-The current Lua scaffold sends read-only DanNet status queries. Target behavior dropdowns stage changes locally; `Apply` sends the real per-character commands.
+The current Lua scaffold starts a lightweight reporter on each client, reads its published status through DanNet, and stages target behavior changes locally. `Apply` sends the real per-character commands.
 
 ## Read-Only Status Queries
 
-Ask a peer what macro is running:
+The manager asks each peer for its reporter payload:
 
 ```text
-/dquery {character} -q Macro.Name -t 1000
+/dquery {character} -q PPQKA_Status -t 1000
 ```
 
-Ask whether the peer's macro is paused:
+The reporter updates `PPQKA_Status` locally once per second. That payload is built from local values such as:
 
-```text
-/dquery {character} -q Macro.Paused -t 1000
-```
-
-Ask KissAssist which INI file it has loaded, if that macro variable exists:
-
-```text
-/dquery {character} -q Macro.Variable[IniFile] -t 1000
-```
-
-The normal background status poll queries `Macro.Name`, `Macro.Paused`, `Macro.Variable[IniFile]`, and live group fields. The debug paused probe remains available as an isolated comparison tool.
+- `Macro.Name`
+- `Macro.Paused`
+- `Macro.Variable[IniFile]`
+- `Group.Members`
+- `Group.Leader.Name`
+- `Group.MainAssist.Name`
+- `Group.Member[0..5].Name`
 
 The UI reads the returned values from DanNet query results and interprets them as:
 
@@ -33,7 +29,7 @@ The UI reads the returned values from DanNet query results and interprets them a
 - `inactive`: no macro is running, or a non-KissAssist macro is running.
 - `unknown`: no usable response has been received yet.
 
-Profile discovery is best-effort. If `Macro.Variable[IniFile]` returns an INI filename, the UI matches it to the configured profile list for that character. If it cannot match the INI, it shows the raw filename. If KissAssist does not expose that variable, the UI falls back to the locally saved intended active profile.
+Profile discovery is best-effort. If the reporter can read `Macro.Variable[IniFile]`, the UI matches it to the configured profile list for that character. If it cannot match the INI, it shows the raw filename. If KissAssist does not expose that variable, the UI falls back to the locally saved intended active profile.
 
 ## Target Behavior Commands
 

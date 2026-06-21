@@ -64,16 +64,23 @@ Expected result in PPQ KissAssist Manager:
 - Local DanNet name appears.
 - Peer count appears.
 - Joined groups appear if DanNet reports them.
+- Reporters show as `seen` in debug after the manager auto-starts them.
 - Live EQ groups appear by leader name, such as `Nandladin's Group`.
 - Ungrouped peers appear together in a final `Ungrouped` section.
 - Your own grouped EQ group appears first when you are grouped.
 - The top table shows manual/inactive, active profile, paused profile, or unknown/checking after DanNet status queries return.
 
-This test uses read-only `/dquery` status probes for `Macro.Name`, `Macro.Paused`, `Macro.Variable[IniFile]`, and live group fields.
+This test uses a per-client reporter. The manager starts `ppqka/ppq_ka_reporter` on known DanNet peers, then reads each peer's `PPQKA_Status` variable with read-only `/dquery`.
 
-To compare `Macro.Paused` in isolation, open debug and press `Probe Macro.Paused only`. That button briefly pauses normal polling and submits only paused queries so the raw paused results are easier to inspect.
+If a reporter does not show as `seen`, make sure `ppq_ka_reporter.lua` was copied into that client's MacroQuest `lua/ppqka/` folder. You can manually start it on a client with:
 
-If group rows or profile labels look wrong, open debug and inspect the raw `Macro.Name`, `Macro.Paused`, `IniFile`, `Group.Members`, `Leader`, `MA`, `Ungroup reads`, and `Roster` values for the affected peer.
+```text
+/lua run ppqka/ppq_ka_reporter
+```
+
+To compare `Macro.Paused` in isolation, open debug and press `Probe Macro.Paused only`. That button submits only paused queries so the raw paused results are easier to inspect.
+
+If group rows or profile labels look wrong, open debug and inspect `Reporter`, `Macro.Name`, `Macro.Paused`, `IniFile`, `Group.Members`, `Leader`, `MA`, `Ungroup reads`, and `Roster` for the affected peer.
 
 Changing a target behavior dropdown only stages a pending change. It does not send commands until `Apply` is clicked.
 

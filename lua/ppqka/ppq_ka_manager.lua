@@ -3,6 +3,8 @@ require('ImGui')
 
 local SCRIPT_NAME = 'PPQKissAssistManager'
 local CONFIG_MODULE = 'ppqka.config.ppq_g1'
+local REPORTER_SCRIPT = 'ppqka/ppq_ka_reporter'
+local REPORTER_VARIABLE = 'PPQKA_Status'
 
 local terminate = false
 local isOpen = true
@@ -18,18 +20,7 @@ local STATUS_QUERY_SECONDS = 8
 local STATUS_READ_DELAY_SECONDS = 2
 local GROUP_UNGROUP_CONFIRM_READS = 3
 local STATUS_QUERIES = {
-  'Macro.Name',
-  'Macro.Paused',
-  'Macro.Variable[IniFile]',
-  'Group.Members',
-  'Group.Leader.Name',
-  'Group.MainAssist.Name',
-  'Group.Member[0].Name',
-  'Group.Member[1].Name',
-  'Group.Member[2].Name',
-  'Group.Member[3].Name',
-  'Group.Member[4].Name',
-  'Group.Member[5].Name',
+  REPORTER_VARIABLE,
 }
 local PAUSED_PROBE_READ_DELAY_SECONDS = 2
 local DEFAULT_END_TO_START_DELAY_MS = 2000
@@ -51,6 +42,7 @@ local pausedProbe = {
 local currentGroupViews
 local groupFirstSeen = {}
 local groupFirstSeenCounter = 0
+local reporterStarted = {}
 
 local ok, configOrError = pcall(require, CONFIG_MODULE)
 local config = ok and configOrError or {
@@ -155,6 +147,8 @@ local function cleanTloName(value)
     or normalized == 'nil'
     or normalized == 'unknown'
     or normalized == 'unavailable'
+    or normalized == 'true'
+    or normalized == 'false'
     or text:match('^%d+$') then
     return nil
   end
@@ -268,6 +262,55 @@ local function formatRoster(roster)
   end
 
   return formatList(names)
+end
+
+local function decodeReporterValue(value)
+  local text = tostring(value or '')
+
+  return text
+    :gsub('%%20', ' ')
+    :gsub('%%2C', ',')
+    :gsub('%%7E', '~')
+    :gsub('%%7C', '|')
+    :gsub('%%25', '%%')
+end
+
+local function parseReporterPayload(payload)
+  local text = cleanReportedText(payload)
+
+  if not text then
+    return nil
+  end
+
+  local report = {}
+
+  for field in text:gmatch('[^|]+') do
+    local key, value = field:match('^([^~]+)~(.*)$')
+
+    if key then
+      report[key] = decodeReporterValue(value)
+    end
+  end
+
+  if report.v ~= '1' then
+    return nil
+  end
+
+  return report
+end
+
+local function rosterFromReporter(report)
+  local roster = {}
+
+  for memberName in tostring((report and report.roster) or ''):gmatch('[^,]+') do
+    local cleanName = cleanTloName(memberName)
+
+    if cleanName then
+      roster[normalizePeerName(cleanName)] = cleanName
+    end
+  end
+
+  return roster
 end
 
 local function timingValue(key, fallback)
@@ -486,18 +529,73 @@ local function readPeerQuery(peer, query)
   end, nil)
 end
 
+local function readLocalReporterPayload()
+  return safeTlo(REPORTER_VARIABLE, function()
+    return mq.parse('${' .. REPORTER_VARIABLE .. '}')
+  end, nil)
+end
+
+local function applyReporterPayload(status, payload)
+  local report = parseReporterPayload(payload)
+
+  if not report then
+    return false
+  end
+
+  status.reporter_seen = true
+  status.reporter_raw = tostring(payload or '')
+  status.reporter_read_at = os.time()
+  status.macro_name = cleanReportedText(report.macro) or ''
+  status.macro_paused = cleanReportedText(report.paused)
+  status.kiss_ini = cleanReportedText(report.ini)
+  status.group_members = cleanReportedText(report.group_members) or '0'
+  status.group_leader = cleanReportedText(report.leader)
+  status.group_main_assist = cleanReportedText(report.ma)
+  status.group_roster = rosterFromReporter(report)
+  status.group_read_at = os.time()
+  status.read_at = os.time()
+  status.query_ok = true
+  return true
+end
+
+local function startReporterForPeer(peer)
+  local peerKey = normalizePeerName(peer)
+
+  if reporterStarted[peerKey] then
+    return
+  end
+
+  reporterStarted[peerKey] = true
+
+  if isLocalPeer(peer) then
+    mq.cmd('/lua run ' .. REPORTER_SCRIPT)
+  else
+    mq.cmdf('/dex %s /lua run %s', peer, REPORTER_SCRIPT)
+  end
+end
+
+local function startReporters()
+  for _, peer in ipairs(allKnownPeers()) do
+    startReporterForPeer(peer)
+  end
+end
+
 local function submitPeerStatusQueries(peer)
   if isLocalPeer(peer) then
     local cached = statusCache[peer] or {}
-    local localStatus = readLocalMacroStatus()
-    cached.macro_name = localStatus.macro_name
-    cached.macro_paused = localStatus.macro_paused
-    cached.kiss_ini = localStatus.kiss_ini
-    cached.group_members = localStatus.group_members
-    cached.group_leader = localStatus.group_leader
-    cached.group_main_assist = localStatus.group_main_assist
-    cached.group_roster = localStatus.group_roster
-    cached.query_ok = localStatus.query_ok
+
+    if not applyReporterPayload(cached, readLocalReporterPayload()) then
+      local localStatus = readLocalMacroStatus()
+      cached.macro_name = localStatus.macro_name
+      cached.macro_paused = localStatus.macro_paused
+      cached.kiss_ini = localStatus.kiss_ini
+      cached.group_members = localStatus.group_members
+      cached.group_leader = localStatus.group_leader
+      cached.group_main_assist = localStatus.group_main_assist
+      cached.group_roster = localStatus.group_roster
+      cached.query_ok = localStatus.query_ok
+    end
+
     cached.query_pending = false
     cached.requested_at = os.time()
     cached.read_at = os.time()
@@ -534,15 +632,19 @@ end
 local function updatePeerStatusFromQueries(peer)
   if isLocalPeer(peer) then
     local cached = statusCache[peer] or {}
-    local localStatus = readLocalMacroStatus()
-    cached.macro_name = localStatus.macro_name
-    cached.macro_paused = localStatus.macro_paused
-    cached.kiss_ini = localStatus.kiss_ini
-    cached.group_members = localStatus.group_members
-    cached.group_leader = localStatus.group_leader
-    cached.group_main_assist = localStatus.group_main_assist
-    cached.group_roster = localStatus.group_roster
-    cached.query_ok = localStatus.query_ok
+
+    if not applyReporterPayload(cached, readLocalReporterPayload()) then
+      local localStatus = readLocalMacroStatus()
+      cached.macro_name = localStatus.macro_name
+      cached.macro_paused = localStatus.macro_paused
+      cached.kiss_ini = localStatus.kiss_ini
+      cached.group_members = localStatus.group_members
+      cached.group_leader = localStatus.group_leader
+      cached.group_main_assist = localStatus.group_main_assist
+      cached.group_roster = localStatus.group_roster
+      cached.query_ok = localStatus.query_ok
+    end
+
     cached.query_pending = false
     cached.requested_at = os.time()
     cached.read_at = os.time()
@@ -563,70 +665,12 @@ local function updatePeerStatusFromQueries(peer)
     return status
   end
 
-  local macroName = readPeerQuery(peer, 'Macro.Name')
-  local macroPaused = readPeerQuery(peer, 'Macro.Paused')
-  local kissIni = readPeerQuery(peer, 'Macro.Variable[IniFile]')
-  local groupMembers = readPeerQuery(peer, 'Group.Members')
-  local groupLeader = readPeerQuery(peer, 'Group.Leader.Name')
-  local groupMainAssist = readPeerQuery(peer, 'Group.MainAssist.Name')
-  local groupRoster = {}
-  local hasRosterRead = false
-
-  if macroName ~= nil then
-    status.macro_name = tostring(macroName)
-    status.read_at = os.time()
-  end
-
-  if macroPaused ~= nil then
-    status.macro_paused = tostring(macroPaused)
-    status.read_at = os.time()
-  end
-
-  if kissIni ~= nil then
-    status.kiss_ini = tostring(kissIni)
-    status.read_at = os.time()
-  end
-
-  if groupMembers ~= nil then
-    status.group_members = tostring(groupMembers)
-    status.read_at = os.time()
-    status.group_read_at = os.time()
-  end
-
-  if groupLeader ~= nil then
-    status.group_leader = tostring(groupLeader)
-    status.read_at = os.time()
-    status.group_read_at = os.time()
-  end
-
-  if groupMainAssist ~= nil then
-    status.group_main_assist = tostring(groupMainAssist)
-    status.read_at = os.time()
-    status.group_read_at = os.time()
-  end
-
-  for index = 0, 5 do
-    local memberName = readPeerQuery(peer, groupMemberQuery(index))
-
-    if memberName ~= nil then
-      hasRosterRead = true
-      local cleanName = cleanTloName(memberName)
-
-      if cleanName then
-        groupRoster[normalizePeerName(cleanName)] = cleanName
-      end
-    end
-  end
-
-  if hasRosterRead then
-    status.group_roster = groupRoster
-    status.read_at = os.time()
-    status.group_read_at = os.time()
-  end
+  local reporterPayload = readPeerQuery(peer, REPORTER_VARIABLE)
+  applyReporterPayload(status, reporterPayload)
 
   status.query_pending = false
   status.read_after = nil
-  status.query_ok = status.macro_name ~= nil
+  status.query_ok = status.reporter_seen == true
   statusCache[peer] = status
   return status
 end
@@ -642,7 +686,11 @@ local function statusFor(characterName)
   local normalizedMacroName = string.lower(macroName)
 
   if normalizedMacroName == '' or normalizedMacroName == 'null' then
-    return 'inactive'
+    if status.query_ok then
+      return 'inactive'
+    end
+
+    return 'unknown'
   end
 
   if string.find(normalizedMacroName, 'kiss') then
@@ -1555,7 +1603,7 @@ local function drawDanNetDiscovery()
     submitPausedProbe()
   end
 
-  ImGui.Text('Normal polling queries: Macro.Name and Group.*')
+  ImGui.Text('Normal polling query: PPQKA_Status')
 
   for _, peer in ipairs(allDisplayPeers()) do
     local status = updatePeerStatusFromQueries(peer)
@@ -1572,6 +1620,8 @@ local function drawDanNetDiscovery()
     ImGui.Text('Paused probe: ' .. tostring(probe.value or 'not run'))
     ImGui.SameLine(220)
     ImGui.Text('Probe read: ' .. formatTimestamp(probe.read_at))
+    ImGui.SameLine(420)
+    ImGui.Text('Reporter: ' .. (status.reporter_seen and ('seen ' .. formatTimestamp(status.reporter_read_at)) or 'not seen'))
     ImGui.Text('Group.Members: ' .. tostring(status.group_members or 'unknown'))
     ImGui.SameLine(180)
     ImGui.Text('Leader: ' .. tostring(status.group_leader or 'unknown'))
@@ -1601,8 +1651,9 @@ local function render()
 
     if ImGui.Button('Refresh') then
       refreshDanNetDiscovery()
+      startReporters()
       refreshPeerStatusQueries()
-      logDryRun('refresh', 'Read local DanNet peer/group TLOs and query macro status')
+      logDryRun('refresh', 'Read DanNet peers, start reporters, and query reported status')
     end
 
     ImGui.SameLine()
@@ -1611,7 +1662,7 @@ local function render()
       showDebug = not showDebug
     end
 
-    ImGui.Text('Status uses DanNet queries. Target changes are staged until Apply is clicked.')
+    ImGui.Text('Status uses PPQ reporters via DanNet. Target changes are staged until Apply is clicked.')
     ImGui.Separator()
 
     if showDebug then
@@ -1657,6 +1708,7 @@ end
 
 mq.imgui.init(SCRIPT_NAME, render)
 refreshDanNetDiscovery()
+startReporters()
 refreshPeerStatusQueries()
 lastStatusQuery = os.time()
 
@@ -1667,6 +1719,7 @@ while not terminate do
   local now = os.time()
   if now - lastRefresh >= 5 then
     refreshDanNetDiscovery()
+    startReporters()
     lastRefresh = now
   end
 

@@ -24,7 +24,7 @@
 - Show discovered character names from DanNet peers.
 - Organize characters by live EQ group leader, with ungrouped peers collected together.
 - Show KissAssist running, not running, or paused if detectable.
-- Query `Macro.Name` and `Macro.Paused` through DanNet as the first status probe.
+- Read `PPQKA_Status` reporter payloads through DanNet as the main status probe.
 - Show current active KissAssist profile if detectable.
 - Avoid fake certainty when status cannot be detected.
 

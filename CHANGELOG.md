@@ -23,3 +23,4 @@
 - Smoothed live group assignment to avoid transient DanNet group-query flicker and rejected numeric group leader/main-assist values.
 - Reconciled live groups from each client's reported `Group.Member[0..5].Name` roster instead of trusting only each peer's individual leader result.
 - Added client-reported KissAssist running/paused status and best-effort active INI/profile display from `Macro.Variable[IniFile]`.
+- Added `ppq_ka_reporter.lua` and changed the manager to auto-start reporters and read `PPQKA_Status` instead of polling many remote TLOs directly.
