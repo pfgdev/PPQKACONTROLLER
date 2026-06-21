@@ -17,3 +17,4 @@
 - Moved profile/loadout command timing into config with a 2000ms end-to-start baseline.
 - Added live MacroQuest group display with configured DanNet groups as fallback.
 - Changed profile/loadout controls to stage pending target behavior changes before `Apply` sends commands.
+- Added a short checking state for newly visible peers and made target choices that match current behavior clear back to `No Change`.

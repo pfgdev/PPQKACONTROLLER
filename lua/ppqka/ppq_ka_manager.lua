@@ -15,6 +15,7 @@ local commandQueue = {}
 local lastRefresh = 0
 local lastStatusQuery = 0
 local STATUS_QUERY_SECONDS = 8
+local STATUS_READ_DELAY_SECONDS = 2
 local STATUS_QUERIES = {
   'Macro.Name',
 }
@@ -424,11 +425,20 @@ local function submitPeerStatusQueries(peer)
     local localStatus = readLocalMacroStatus()
     cached.macro_name = localStatus.macro_name
     cached.query_ok = localStatus.query_ok
+    cached.query_pending = false
+    cached.requested_at = os.time()
+    cached.read_at = os.time()
+    cached.read_after = nil
     statusCache[peer] = cached
     return
   end
 
-  statusCache[peer] = statusCache[peer] or {}
+  local cached = statusCache[peer] or {}
+  cached.requested_at = os.time()
+  cached.read_after = cached.requested_at + STATUS_READ_DELAY_SECONDS
+  cached.query_pending = true
+  cached.query_ok = cached.read_at ~= nil
+  statusCache[peer] = cached
 
   for _, query in ipairs(STATUS_QUERIES) do
     local success, errorMessage = pcall(function()
@@ -453,17 +463,34 @@ local function updatePeerStatusFromQueries(peer)
     local localStatus = readLocalMacroStatus()
     cached.macro_name = localStatus.macro_name
     cached.query_ok = localStatus.query_ok
+    cached.query_pending = false
+    cached.requested_at = os.time()
+    cached.read_at = os.time()
+    cached.read_after = nil
     statusCache[peer] = cached
     return cached
   end
 
   local status = statusCache[peer] or {}
+
+  if not status.requested_at then
+    submitPeerStatusQueries(peer)
+    return statusCache[peer] or status
+  end
+
+  if status.read_after and os.time() < status.read_after then
+    return status
+  end
+
   local macroName = readPeerQuery(peer, 'Macro.Name')
 
   if macroName ~= nil then
     status.macro_name = tostring(macroName)
+    status.read_at = os.time()
   end
 
+  status.query_pending = false
+  status.read_after = nil
   status.query_ok = status.macro_name ~= nil
   statusCache[peer] = status
   return status
@@ -471,6 +498,11 @@ end
 
 local function statusFor(characterName)
   local status = updatePeerStatusFromQueries(characterName)
+
+  if status.query_pending and not status.read_at then
+    return 'checking'
+  end
+
   local macroName = tostring(status.macro_name or '')
   local normalizedMacroName = string.lower(macroName)
 
@@ -842,12 +874,35 @@ end
 
 local function currentBehaviorFor(characterName)
   local selectedProfile = selectedProfileFor(characterName)
+  local status = statusFor(characterName)
 
-  if statusFor(characterName) == 'active' then
+  if status == 'active' then
     return selectedProfile.label, selectedProfile
   end
 
+  if status == 'checking' then
+    return 'Checking', selectedProfile
+  end
+
+  if status == 'unknown' then
+    return 'Unknown', selectedProfile
+  end
+
   return 'Manual', selectedProfile
+end
+
+local function targetMatchesCurrent(characterName, kind, profileKey)
+  local status = statusFor(characterName)
+
+  if status == 'inactive' and kind == 'manual' then
+    return true
+  end
+
+  if status == 'active' and kind == 'profile' and selectedProfileKeyFor(characterName) == profileKey then
+    return true
+  end
+
+  return false
 end
 
 local function pendingChangeLabel(characterName)
@@ -885,18 +940,30 @@ local function drawTargetDropdown(characterName)
 
     local manualSelected = pending and pending.kind == 'manual'
     if ImGui.Selectable('Manual', manualSelected) then
-      stageManualTarget(characterName)
+      if targetMatchesCurrent(characterName, 'manual') then
+        clearPendingChange(characterName)
+      else
+        stageManualTarget(characterName)
+      end
     end
 
     if manualSelected then
       ImGui.SetItemDefaultFocus()
     end
 
+    if #entries > 0 and ImGui.Selectable('-----##target_separator_' .. characterName, false) then
+      clearPendingChange(characterName)
+    end
+
     for _, entry in ipairs(entries) do
       local isSelected = pending and pending.kind == 'profile' and pending.profile == entry.key
 
       if ImGui.Selectable(entry.label, isSelected) then
-        stageProfileTarget(characterName, entry.key, (selectedLoadout() and selectedLoadout().assist) or config.assist)
+        if targetMatchesCurrent(characterName, 'profile', entry.key) then
+          clearPendingChange(characterName)
+        else
+          stageProfileTarget(characterName, entry.key, (selectedLoadout() and selectedLoadout().assist) or config.assist)
+        end
       end
 
       if isSelected then
