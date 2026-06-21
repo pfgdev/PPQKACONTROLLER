@@ -25,6 +25,8 @@ The UI reads the returned values from DanNet query results and interprets them a
 - `inactive`: no macro is running, or a non-KissAssist macro is running.
 - `unknown`: no usable response has been received yet.
 
+The main table uses a short stabilization delay before changing the displayed status so transient DanNet query results do not cause visible flicker. The debug view shows raw macro values, observed status, and displayed status.
+
 Active profile discovery is not wired yet.
 
 ## Character Commands

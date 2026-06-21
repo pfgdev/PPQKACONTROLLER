@@ -9,3 +9,4 @@
 - Moved the main UI toward a compact group status table.
 - Added read-only DanNet status probes for `Macro.Name` and `Macro.Paused`.
 - Added configured active profile selections and labels.
+- Added status stabilization to reduce active/inactive flicker from transient DanNet query results.

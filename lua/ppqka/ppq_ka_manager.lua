@@ -12,6 +12,7 @@ local dryRunLog = {}
 local lastRefresh = 0
 local lastStatusQuery = 0
 local STATUS_QUERY_SECONDS = 8
+local STATUS_STABILIZE_SECONDS = 12
 local STATUS_QUERIES = {
   'Macro.Name',
   'Macro.Paused',
@@ -226,7 +227,12 @@ end
 
 local function submitPeerStatusQueries(peer)
   if isLocalPeer(peer) then
-    statusCache[peer] = readLocalMacroStatus()
+    local cached = statusCache[peer] or {}
+    local localStatus = readLocalMacroStatus()
+    cached.macro_name = localStatus.macro_name
+    cached.macro_paused = localStatus.macro_paused
+    cached.query_ok = localStatus.query_ok
+    statusCache[peer] = cached
     return
   end
 
@@ -251,8 +257,13 @@ end
 
 local function updatePeerStatusFromQueries(peer)
   if isLocalPeer(peer) then
-    statusCache[peer] = readLocalMacroStatus()
-    return statusCache[peer]
+    local cached = statusCache[peer] or {}
+    local localStatus = readLocalMacroStatus()
+    cached.macro_name = localStatus.macro_name
+    cached.macro_paused = localStatus.macro_paused
+    cached.query_ok = localStatus.query_ok
+    statusCache[peer] = cached
+    return cached
   end
 
   local status = statusCache[peer] or {}
@@ -277,8 +288,7 @@ local function isTruthy(value)
   return text == 'true' or text == '1' or text == 'yes'
 end
 
-local function statusFor(characterName)
-  local status = updatePeerStatusFromQueries(characterName)
+local function observedStatusFor(status)
   local macroName = tostring(status.macro_name or '')
   local normalizedMacroName = string.lower(macroName)
 
@@ -299,6 +309,44 @@ local function statusFor(characterName)
   end
 
   return 'unknown'
+end
+
+local function stableStatusFor(characterName)
+  local status = updatePeerStatusFromQueries(characterName)
+  local observedStatus = observedStatusFor(status)
+  local now = os.time()
+
+  status.observed_status = observedStatus
+
+  if not status.display_status then
+    status.display_status = observedStatus
+    status.pending_status = nil
+    status.pending_since = nil
+    return status.display_status
+  end
+
+  if observedStatus == status.display_status then
+    status.pending_status = nil
+    status.pending_since = nil
+    return status.display_status
+  end
+
+  if observedStatus == 'unknown' then
+    return status.display_status
+  end
+
+  if status.pending_status ~= observedStatus then
+    status.pending_status = observedStatus
+    status.pending_since = now
+  end
+
+  if status.pending_since and now - status.pending_since >= STATUS_STABILIZE_SECONDS then
+    status.display_status = observedStatus
+    status.pending_status = nil
+    status.pending_since = nil
+  end
+
+  return status.display_status
 end
 
 local function firstProfile(character)
@@ -362,7 +410,7 @@ end
 local function drawStatusRow(characterName)
   ImGui.Text(characterName)
   ImGui.SameLine(150)
-  ImGui.Text(statusFor(characterName))
+  ImGui.Text(stableStatusFor(characterName))
   ImGui.SameLine(260)
   ImGui.Text(savedProfileFor(characterName))
 end
@@ -523,6 +571,10 @@ local function drawDanNetDiscovery()
     ImGui.Text('Macro.Name: ' .. tostring(status.macro_name or 'unknown'))
     ImGui.SameLine(360)
     ImGui.Text('Paused: ' .. tostring(status.macro_paused or 'unknown'))
+    ImGui.SameLine(500)
+    ImGui.Text('Observed: ' .. tostring(status.observed_status or 'unknown'))
+    ImGui.SameLine(650)
+    ImGui.Text('Shown: ' .. tostring(status.display_status or 'unknown'))
 
     if status.query_error then
       ImGui.TextWrapped('Query error: ' .. status.query_error)
