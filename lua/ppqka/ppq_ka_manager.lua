@@ -1780,11 +1780,11 @@ local function drawStatusTable(group, peers)
   local tableId = 'status_table_' .. tostring(group.key or group.label or group.peers or 'group')
   local flags = bit32.bor(ImGuiTableFlags.Borders, ImGuiTableFlags.RowBg, ImGuiTableFlags.SizingFixedFit, ImGuiTableFlags.NoHostExtendX)
 
-  if ImGui.BeginTable(tableId, 4, flags, ImVec2(698, 0)) then
+  if ImGui.BeginTable(tableId, 4, flags, ImVec2(730, 0)) then
     ImGui.TableSetupColumn('Character', ImGuiTableColumnFlags.WidthFixed, 175.0)
     ImGui.TableSetupColumn('Current Behavior', ImGuiTableColumnFlags.WidthFixed, 205.0)
     ImGui.TableSetupColumn('Target Behavior', ImGuiTableColumnFlags.WidthFixed, 260.0)
-    ImGui.TableSetupColumn('Undo', ImGuiTableColumnFlags.WidthFixed, 58.0)
+    ImGui.TableSetupColumn('Undo', ImGuiTableColumnFlags.WidthFixed, 90.0)
     ImGui.TableHeadersRow()
 
     for _, peer in ipairs(peers) do
