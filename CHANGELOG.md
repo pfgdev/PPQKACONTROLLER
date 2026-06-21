@@ -22,3 +22,4 @@
 - Replaced configured display-group organization with live EQ group panels plus a final `Ungrouped` section.
 - Smoothed live group assignment to avoid transient DanNet group-query flicker and rejected numeric group leader/main-assist values.
 - Reconciled live groups from each client's reported `Group.Member[0..5].Name` roster instead of trusting only each peer's individual leader result.
+- Added client-reported KissAssist running/paused status and best-effort active INI/profile display from `Macro.Variable[IniFile]`.

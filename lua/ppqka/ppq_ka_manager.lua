@@ -19,6 +19,8 @@ local STATUS_READ_DELAY_SECONDS = 2
 local GROUP_UNGROUP_CONFIRM_READS = 3
 local STATUS_QUERIES = {
   'Macro.Name',
+  'Macro.Paused',
+  'Macro.Variable[IniFile]',
   'Group.Members',
   'Group.Leader.Name',
   'Group.MainAssist.Name',
@@ -158,6 +160,35 @@ local function cleanTloName(value)
   end
 
   return text
+end
+
+local function cleanReportedText(value)
+  local text = tostring(value or '')
+  local normalized = string.lower(text)
+
+  if text == ''
+    or normalized == 'null'
+    or normalized == 'nil'
+    or normalized == 'unknown'
+    or normalized == 'unavailable' then
+    return nil
+  end
+
+  return text
+end
+
+local function reportedBool(value)
+  local normalized = string.lower(tostring(value or ''))
+
+  if normalized == 'true' then
+    return true
+  end
+
+  if normalized == 'false' then
+    return false
+  end
+
+  return nil
 end
 
 local function allKnownPeers()
@@ -325,6 +356,28 @@ local function selectedProfileFor(characterName)
   return profileForKey(characterName, selectedProfileKeyFor(characterName))
 end
 
+local function profileForIni(characterName, ini)
+  local reportedIni = cleanReportedText(ini)
+
+  if not reportedIni then
+    return nil
+  end
+
+  local normalizedIni = string.lower(reportedIni)
+
+  for _, profile in ipairs(profileEntriesFor(characterName)) do
+    if string.lower(profile.ini or '') == normalizedIni then
+      return profile
+    end
+  end
+
+  return {
+    key = nil,
+    label = reportedIni,
+    ini = reportedIni,
+  }
+end
+
 local function loadoutEntries()
   local entries = {}
 
@@ -409,6 +462,12 @@ local function readLocalMacroStatus()
     macro_name = safeTlo('Macro.Name', function()
       return mq.TLO.Macro.Name()
     end, ''),
+    macro_paused = safeTlo('Macro.Paused', function()
+      return mq.TLO.Macro.Paused()
+    end, nil),
+    kiss_ini = safeTlo('Macro.Variable[IniFile]', function()
+      return mq.TLO.Macro.Variable('IniFile')()
+    end, nil),
     group_members = groupMembers,
     group_leader = safeTlo('Group.Leader.Name', function()
       return mq.TLO.Group.Leader.Name()
@@ -432,6 +491,8 @@ local function submitPeerStatusQueries(peer)
     local cached = statusCache[peer] or {}
     local localStatus = readLocalMacroStatus()
     cached.macro_name = localStatus.macro_name
+    cached.macro_paused = localStatus.macro_paused
+    cached.kiss_ini = localStatus.kiss_ini
     cached.group_members = localStatus.group_members
     cached.group_leader = localStatus.group_leader
     cached.group_main_assist = localStatus.group_main_assist
@@ -475,6 +536,8 @@ local function updatePeerStatusFromQueries(peer)
     local cached = statusCache[peer] or {}
     local localStatus = readLocalMacroStatus()
     cached.macro_name = localStatus.macro_name
+    cached.macro_paused = localStatus.macro_paused
+    cached.kiss_ini = localStatus.kiss_ini
     cached.group_members = localStatus.group_members
     cached.group_leader = localStatus.group_leader
     cached.group_main_assist = localStatus.group_main_assist
@@ -501,6 +564,8 @@ local function updatePeerStatusFromQueries(peer)
   end
 
   local macroName = readPeerQuery(peer, 'Macro.Name')
+  local macroPaused = readPeerQuery(peer, 'Macro.Paused')
+  local kissIni = readPeerQuery(peer, 'Macro.Variable[IniFile]')
   local groupMembers = readPeerQuery(peer, 'Group.Members')
   local groupLeader = readPeerQuery(peer, 'Group.Leader.Name')
   local groupMainAssist = readPeerQuery(peer, 'Group.MainAssist.Name')
@@ -509,6 +574,16 @@ local function updatePeerStatusFromQueries(peer)
 
   if macroName ~= nil then
     status.macro_name = tostring(macroName)
+    status.read_at = os.time()
+  end
+
+  if macroPaused ~= nil then
+    status.macro_paused = tostring(macroPaused)
+    status.read_at = os.time()
+  end
+
+  if kissIni ~= nil then
+    status.kiss_ini = tostring(kissIni)
     status.read_at = os.time()
   end
 
@@ -571,6 +646,10 @@ local function statusFor(characterName)
   end
 
   if string.find(normalizedMacroName, 'kiss') then
+    if reportedBool(status.macro_paused) then
+      return 'paused'
+    end
+
     return 'active'
   end
 
@@ -810,7 +889,15 @@ local function targetMatchesCurrent(characterName, kind, profileKey)
     return true
   end
 
-  if status == 'active' and kind == 'profile' and selectedProfileKeyFor(characterName) == profileKey then
+  if (status == 'active' or status == 'paused') and kind == 'profile' then
+    local reportedProfile = profileForIni(characterName, (statusCache[characterName] or {}).kiss_ini)
+
+    if reportedProfile and reportedProfile.key == profileKey then
+      return true
+    end
+  end
+
+  if (status == 'active' or status == 'paused') and kind == 'profile' and selectedProfileKeyFor(characterName) == profileKey then
     return true
   end
 
@@ -1190,11 +1277,16 @@ local function drawStatusHeader()
 end
 
 local function currentBehaviorFor(characterName)
-  local selectedProfile = selectedProfileFor(characterName)
   local status = statusFor(characterName)
+  local reportedStatus = statusCache[characterName] or {}
+  local selectedProfile = profileForIni(characterName, reportedStatus.kiss_ini) or selectedProfileFor(characterName)
 
   if status == 'active' then
     return selectedProfile.label, selectedProfile
+  end
+
+  if status == 'paused' then
+    return 'Paused: ' .. selectedProfile.label, selectedProfile
   end
 
   if status == 'checking' then
@@ -1474,9 +1566,12 @@ local function drawDanNetDiscovery()
     ImGui.SameLine(150)
     ImGui.Text('Macro.Name: ' .. tostring(status.macro_name or 'unknown'))
     ImGui.SameLine(360)
-    ImGui.Text('Paused probe: ' .. tostring(probe.value or 'not run'))
+    ImGui.Text('Macro.Paused: ' .. tostring(status.macro_paused or 'unknown'))
     ImGui.SameLine(560)
-    ImGui.Text('Read: ' .. formatTimestamp(probe.read_at))
+    ImGui.Text('IniFile: ' .. tostring(status.kiss_ini or 'unknown'))
+    ImGui.Text('Paused probe: ' .. tostring(probe.value or 'not run'))
+    ImGui.SameLine(220)
+    ImGui.Text('Probe read: ' .. formatTimestamp(probe.read_at))
     ImGui.Text('Group.Members: ' .. tostring(status.group_members or 'unknown'))
     ImGui.SameLine(180)
     ImGui.Text('Leader: ' .. tostring(status.group_leader or 'unknown'))

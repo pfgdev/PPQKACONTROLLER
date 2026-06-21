@@ -18,17 +18,22 @@ Ask whether the peer's macro is paused:
 /dquery {character} -q Macro.Paused -t 1000
 ```
 
-The normal background status poll only queries `Macro.Name`. `Macro.Paused` is queried only from the debug button so it can be tested without mixing it with the regular status poll.
+Ask KissAssist which INI file it has loaded, if that macro variable exists:
+
+```text
+/dquery {character} -q Macro.Variable[IniFile] -t 1000
+```
+
+The normal background status poll queries `Macro.Name`, `Macro.Paused`, `Macro.Variable[IniFile]`, and live group fields. The debug paused probe remains available as an isolated comparison tool.
 
 The UI reads the returned values from DanNet query results and interprets them as:
 
 - `active`: a macro with `kiss` in the name is running.
+- `paused`: a macro with `kiss` in the name is running and `Macro.Paused` reports true.
 - `inactive`: no macro is running, or a non-KissAssist macro is running.
 - `unknown`: no usable response has been received yet.
 
-`Macro.Paused` is not used for the main status yet. The debug view has a `Probe Macro.Paused only` button that briefly pauses normal `Macro.Name` polling, submits isolated paused queries, and shows the raw returned values.
-
-Active profile discovery is not wired yet.
+Profile discovery is best-effort. If `Macro.Variable[IniFile]` returns an INI filename, the UI matches it to the configured profile list for that character. If it cannot match the INI, it shows the raw filename. If KissAssist does not expose that variable, the UI falls back to the locally saved intended active profile.
 
 ## Target Behavior Commands
 

@@ -36,7 +36,7 @@ The MVP will build strings from templates, show those strings in the UI where us
 
 ### Command Dispatcher
 
-The status layer uses live MacroQuest `Group` TLOs locally and through DanNet `/dquery` probes for each peer. Normal status polling queries `Macro.Name`, `Group.Members`, `Group.Leader.Name`, and `Group.MainAssist.Name`; `Macro.Paused` is available through an isolated debug probe. Applying staged target behavior changes uses a small queued dispatcher to send real per-character `/dex` commands without blocking ImGui rendering.
+The status layer uses local MacroQuest TLOs directly for the controller client and DanNet `/dquery` probes for each peer. Normal status polling queries each client's reported macro state (`Macro.Name`, `Macro.Paused`, best-effort `Macro.Variable[IniFile]`) plus group state (`Group.Members`, `Group.Leader.Name`, `Group.MainAssist.Name`, and `Group.Member[0..5].Name`). Applying staged target behavior changes uses a small queued dispatcher to send real per-character `/dex` commands without blocking ImGui rendering.
 
 The command queue uses `mq.gettime()` millisecond timing. Before scheduling a profile or loadout action, it clears pending queued commands for the affected characters and leaves a delay between `/end` and `/mac kissassist`.
 
@@ -44,6 +44,7 @@ Current scaffold behavior:
 
 - Read-only DanNet status query dispatch.
 - Live EQ group display by group leader, plus a final `Ungrouped` bucket.
+- Client-reported KissAssist running/paused status and best-effort active INI/profile display.
 - Per-character target behavior dropdowns that stage `No Change`, `Manual`, or a configured profile.
 - Apply dispatch: per-character end/start for profile targets, or `/end` for manual targets.
 - No group start, group pause, group resume, hard stop, cleanup, movement, attack, or pet command dispatch from the main UI.
@@ -60,8 +61,6 @@ The first desired live status view is:
 
 Later versions may use:
 
-- MacroQuest TLOs where available.
-- DanNet queries.
 - A lightweight per-character agent script.
 - Explicit heartbeat/status messages.
 

@@ -67,13 +67,13 @@ Expected result in PPQ KissAssist Manager:
 - Live EQ groups appear by leader name, such as `Nandladin's Group`.
 - Ungrouped peers appear together in a final `Ungrouped` section.
 - Your own grouped EQ group appears first when you are grouped.
-- The top table shows `active`, `inactive`, or `unknown` after DanNet status queries return.
+- The top table shows manual/inactive, active profile, paused profile, or unknown/checking after DanNet status queries return.
 
-This test uses read-only `/dquery` status probes for `Macro.Name`.
+This test uses read-only `/dquery` status probes for `Macro.Name`, `Macro.Paused`, `Macro.Variable[IniFile]`, and live group fields.
 
-To test `Macro.Paused`, open debug and press `Probe Macro.Paused only`. That button briefly pauses normal `Macro.Name` polling and submits only paused queries so the raw paused results are easier to inspect.
+To compare `Macro.Paused` in isolation, open debug and press `Probe Macro.Paused only`. That button briefly pauses normal polling and submits only paused queries so the raw paused results are easier to inspect.
 
-If group rows flicker, open debug and inspect the raw `Group.Members`, `Leader`, `MA`, `Ungroup reads`, and `Roster` values for the affected peer.
+If group rows or profile labels look wrong, open debug and inspect the raw `Macro.Name`, `Macro.Paused`, `IniFile`, `Group.Members`, `Leader`, `MA`, `Ungroup reads`, and `Roster` values for the affected peer.
 
 Changing a target behavior dropdown only stages a pending change. It does not send commands until `Apply` is clicked.
 
