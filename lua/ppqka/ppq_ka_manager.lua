@@ -1729,10 +1729,20 @@ local function drawTargetDropdown(characterName)
   end
 end
 
+local function displayCharacterName(characterName)
+  local text = tostring(characterName or '')
+
+  return text:gsub('^%l', string.upper)
+end
+
 local function drawStatusRow(characterName)
   local pending = pendingChangeFor(characterName)
   local currentBehavior, currentProfile, currentState = currentBehaviorFor(characterName)
-  local displayName = pending and ('> ' .. characterName) or characterName
+  local displayName = displayCharacterName(characterName)
+
+  if pending then
+    displayName = '> ' .. displayName
+  end
 
   ImGui.TableNextRow()
   ImGui.TableNextColumn()
@@ -1766,9 +1776,9 @@ end
 
 local function drawStatusTable(group, peers)
   local tableId = 'status_table_' .. tostring(group.key or group.label or group.peers or 'group')
-  local flags = bit32.bor(ImGuiTableFlags.Borders, ImGuiTableFlags.RowBg, ImGuiTableFlags.Resizable, ImGuiTableFlags.SizingFixedFit)
+  local flags = bit32.bor(ImGuiTableFlags.Borders, ImGuiTableFlags.RowBg, ImGuiTableFlags.SizingFixedFit, ImGuiTableFlags.NoHostExtendX)
 
-  if ImGui.BeginTable(tableId, 4, flags) then
+  if ImGui.BeginTable(tableId, 4, flags, ImVec2(684, 0)) then
     ImGui.TableSetupColumn('Character', ImGuiTableColumnFlags.WidthFixed, 175.0)
     ImGui.TableSetupColumn('Current Behavior', ImGuiTableColumnFlags.WidthFixed, 205.0)
     ImGui.TableSetupColumn('Target Behavior', ImGuiTableColumnFlags.WidthFixed, 260.0)
