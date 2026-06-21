@@ -1452,8 +1452,8 @@ local function pendingChangeCount()
   return count
 end
 
-local function stageManualTarget(characterName)
-  if targetMatchesCurrent(characterName, 'manual') then
+local function stageManualTarget(characterName, force)
+  if not force and targetMatchesCurrent(characterName, 'manual') then
     clearPendingChange(characterName)
     return false
   end
@@ -1467,8 +1467,8 @@ local function stageManualTarget(characterName)
   return true
 end
 
-local function stageProfileTarget(characterName, profileKey, assist)
-  if targetMatchesCurrent(characterName, 'profile', profileKey) then
+local function stageProfileTarget(characterName, profileKey, assist, force)
+  if not force and targetMatchesCurrent(characterName, 'profile', profileKey) then
     clearPendingChange(characterName)
     return false
   end
@@ -1505,7 +1505,7 @@ local function stageLoadout(loadout)
   local stagedCount = 0
 
   for _, entry in ipairs(entries) do
-    if stageProfileTarget(entry.character, entry.profile, loadout.assist or config.assist) then
+    if stageProfileTarget(entry.character, entry.profile, loadout.assist or config.assist, true) then
       stagedCount = stagedCount + 1
     end
   end
@@ -1527,7 +1527,7 @@ stageUnloadLoadout = function(loadout)
   end
 
   for _, entry in ipairs(entries) do
-    if entry.character and stageManualTarget(entry.character) then
+    if entry.character and stageManualTarget(entry.character, true) then
       stagedCount = stagedCount + 1
     end
   end
