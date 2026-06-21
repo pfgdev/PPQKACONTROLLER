@@ -266,13 +266,13 @@ end
 
 local function decodeReporterValue(value)
   local text = tostring(value or '')
+  local decoded = {}
 
-  return text
-    :gsub('%%20', ' ')
-    :gsub('%%2C', ',')
-    :gsub('%%7E', '~')
-    :gsub('%%7C', '|')
-    :gsub('%%25', '%%')
+  for byteText in text:gmatch('%x%x') do
+    table.insert(decoded, string.char(tonumber(byteText, 16)))
+  end
+
+  return table.concat(decoded)
 end
 
 local function parseReporterPayload(payload)

@@ -41,12 +41,9 @@ local function cleanName(value)
 end
 
 local function encode(value)
-  return cleanText(value)
-    :gsub('%%', '%%25')
-    :gsub('|', '%%7C')
-    :gsub('~', '%%7E')
-    :gsub(',', '%%2C')
-    :gsub(' ', '%%20')
+  return cleanText(value):gsub('.', function(character)
+    return string.format('%02X', string.byte(character))
+  end)
 end
 
 local function boolText(value)
@@ -89,7 +86,7 @@ local function groupRoster(groupMembers)
     local memberName = groupMemberName(index)
 
     if memberName ~= '' then
-      table.insert(names, encode(memberName))
+      table.insert(names, memberName)
     end
   end
 
@@ -137,8 +134,8 @@ end
 
 local function publishStatus()
   ensureReporterVariable()
-  mq.cmdf('/varset %s %s', REPORTER_VARIABLE, buildStatus())
-  mq.cmdf('/varset %s %s', HEARTBEAT_VARIABLE, tostring(os.time()))
+  mq.cmd('/varset ' .. REPORTER_VARIABLE .. ' ' .. buildStatus())
+  mq.cmd('/varset ' .. HEARTBEAT_VARIABLE .. ' ' .. tostring(os.time()))
 end
 
 ensureReporterVariable()
@@ -151,6 +148,11 @@ end
 print(string.format('[%s] started', SCRIPT_NAME))
 
 while true do
-  publishStatus()
+  local ok, errorMessage = pcall(publishStatus)
+
+  if not ok then
+    print(string.format('[%s] publish failed: %s', SCRIPT_NAME, tostring(errorMessage)))
+  end
+
   mq.delay(UPDATE_DELAY_MS)
 end
