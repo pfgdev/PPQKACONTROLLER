@@ -10,7 +10,7 @@ This repository is an initial scaffold only.
 
 - Documentation exists for the intended architecture, commands, config, and roadmap.
 - A sample PPQ Group 1 config exists at `lua/ppqka/config/ppq_g1.lua`.
-- A minimal ImGui script exists at `lua/ppq_ka_manager.lua`.
+- A minimal ImGui script exists at `lua/ppqka/ppq_ka_manager.lua`.
 - The current UI is dry-run only. It prints intended commands and does not send real `/dex`, `/dgex`, `/mac`, `/mqp`, `/end`, movement, attack, or pet commands.
 
 ## File Layout
@@ -27,20 +27,20 @@ This repository is an initial scaffold only.
 |   +-- ROADMAP.md
 |   +-- TESTING.md
 +-- lua/
-    +-- ppq_ka_manager.lua
     +-- ppqka/
+        +-- ppq_ka_manager.lua
         +-- config/
             +-- ppq_g1.lua
 ```
 
 ## MacroQuest Setup
 
-For early testing, copy or sync the contents of this repository's `lua/` folder into your MacroQuest `lua/` folder so the script and `ppqka` module folder are side by side.
+For early testing, copy or sync the contents of this repository's `lua/` folder into your MacroQuest `lua/` folder.
 
 Then run:
 
 ```text
-/lua run ppq_ka_manager
+/lua run ppqka/ppq_ka_manager
 ```
 
 Stop it with:
@@ -49,10 +49,16 @@ Stop it with:
 /lua stop ppq_ka_manager
 ```
 
+If MacroQuest does not match by basename, use:
+
+```text
+/lua stop ppqka/ppq_ka_manager
+```
+
 ## First Test
 
 1. Start MacroQuest with Lua and ImGui support loaded.
-2. Run `/lua run ppq_ka_manager`.
+2. Run `/lua run ppqka/ppq_ka_manager`.
 3. Confirm the `PPQ KissAssist Manager` window opens.
 4. Press a dry-run button.
 5. Confirm a dry-run line prints to MQ chat and appears in the window log.

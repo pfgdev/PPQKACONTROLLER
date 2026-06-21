@@ -15,27 +15,32 @@ The first testing workflow is:
 From this repository, copy:
 
 ```text
-lua/ppq_ka_manager.lua
 lua/ppqka/
 ```
 
 Into the MacroQuest Lua folder so MacroQuest sees:
 
 ```text
-MacroQuest/lua/ppq_ka_manager.lua
+MacroQuest/lua/ppqka/ppq_ka_manager.lua
 MacroQuest/lua/ppqka/config/ppq_g1.lua
 ```
 
 Then run:
 
 ```text
-/lua run ppq_ka_manager
+/lua run ppqka/ppq_ka_manager
 ```
 
 Stop the script with:
 
 ```text
 /lua stop ppq_ka_manager
+```
+
+If MacroQuest does not match by basename, use:
+
+```text
+/lua stop ppqka/ppq_ka_manager
 ```
 
 ## First DanNet Discovery Test
@@ -67,7 +72,7 @@ This test does not send commands to any character.
 
 Write down:
 
-- Which character ran `/lua run ppq_ka_manager`.
+- Which character ran `/lua run ppqka/ppq_ka_manager`.
 - Whether the window opened.
 - Any MQ chat error text.
 - Whether `/dnet` shows peers.
