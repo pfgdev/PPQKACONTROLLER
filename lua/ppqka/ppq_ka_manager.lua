@@ -1677,7 +1677,7 @@ local function drawTargetDropdown(characterName)
   local entries = profileEntriesFor(characterName)
   local pending = pendingChangeFor(characterName)
 
-  ImGui.SetNextItemWidth(230)
+  ImGui.SetNextItemWidth(-1)
 
   if ImGui.BeginCombo('##target_' .. characterName, pendingChangeLabel(characterName)) then
     if ImGui.Selectable('No Change', pending == nil) then
@@ -1755,6 +1755,7 @@ local function drawStatusRow(characterName)
 
   ImGui.TableNextColumn()
   if pending then
+    ImGui.SetCursorPosX(ImGui.GetCursorPosX() + 8)
     if ImGui.Button('X##clear_target_' .. characterName) then
       clearPendingChange(characterName)
     end
@@ -1765,13 +1766,13 @@ end
 
 local function drawStatusTable(group, peers)
   local tableId = 'status_table_' .. tostring(group.key or group.label or group.peers or 'group')
-  local flags = bit32.bor(ImGuiTableFlags.Borders, ImGuiTableFlags.RowBg, ImGuiTableFlags.Resizable)
+  local flags = bit32.bor(ImGuiTableFlags.Borders, ImGuiTableFlags.RowBg, ImGuiTableFlags.Resizable, ImGuiTableFlags.SizingFixedFit)
 
   if ImGui.BeginTable(tableId, 4, flags) then
-    ImGui.TableSetupColumn('Character', ImGuiTableColumnFlags.WidthFixed, 170.0)
-    ImGui.TableSetupColumn('Current behavior', ImGuiTableColumnFlags.WidthFixed, 200.0)
-    ImGui.TableSetupColumn('Target behavior', ImGuiTableColumnFlags.WidthFixed, 250.0)
-    ImGui.TableSetupColumn('', ImGuiTableColumnFlags.WidthFixed, 34.0)
+    ImGui.TableSetupColumn('Character', ImGuiTableColumnFlags.WidthFixed, 175.0)
+    ImGui.TableSetupColumn('Current Behavior', ImGuiTableColumnFlags.WidthFixed, 205.0)
+    ImGui.TableSetupColumn('Target Behavior', ImGuiTableColumnFlags.WidthFixed, 260.0)
+    ImGui.TableSetupColumn('Undo', ImGuiTableColumnFlags.WidthFixed, 44.0)
     ImGui.TableHeadersRow()
 
     for _, peer in ipairs(peers) do
