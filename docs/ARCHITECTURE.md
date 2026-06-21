@@ -8,7 +8,7 @@ PPQ KissAssist Manager is intended to be a small MacroQuest Lua application with
 
 The UI should lead with a compact status table: group, character, KissAssist status, and active profile. Deeper debug and command-preview details should live lower in the window and may eventually be hidden or removed.
 
-The initial UI is intentionally dry-run only. It renders placeholder rows and logs the command that would be sent.
+The main status UI can send real per-character profile restart commands from the active profile dropdown. Debug-only controls may still log command previews without dispatching them.
 
 ### Config
 
@@ -36,12 +36,13 @@ The MVP will build strings from templates, show those strings in the UI where us
 
 ### Command Dispatcher
 
-The status layer uses `mq.cmdf()` for read-only DanNet `/dquery` probes. The dispatcher will eventually use `mq.cmd()` or `mq.cmdf()` for real control commands.
+The status layer uses `mq.cmdf()` for read-only DanNet `/dquery` probes. Profile dropdown changes use a small queued dispatcher to send real `/dex` commands without blocking ImGui rendering.
 
 Current scaffold behavior:
 
 - Read-only DanNet status query dispatch.
-- No KissAssist start, pause, resume, end, cleanup, movement, attack, or pet command dispatch.
+- Per-character active profile dropdown dispatch: end KissAssist, then start KissAssist with the selected INI.
+- No group start, group pause, group resume, hard stop, cleanup, movement, attack, or pet command dispatch from the main UI.
 - Debug buttons log dry-run command text only.
 
 ### Status Layer

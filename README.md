@@ -11,7 +11,9 @@ This repository is an initial scaffold only.
 - Documentation exists for the intended architecture, commands, config, and roadmap.
 - A sample PPQ Group 1 config exists at `lua/ppqka/config/ppq_g1.lua`.
 - A minimal ImGui script exists at `lua/ppqka/ppq_ka_manager.lua`.
-- The current UI is dry-run only. It prints intended commands and does not send real `/dex`, `/dgex`, `/mac`, `/mqp`, `/end`, movement, attack, or pet commands.
+- The status UI uses read-only DanNet queries.
+- Changing a character's active profile dropdown sends real `/dex` commands to restart KissAssist with the selected INI.
+- Debug controls may still show dry-run command previews.
 
 ## File Layout
 
@@ -60,8 +62,8 @@ If MacroQuest does not match by basename, use:
 1. Start MacroQuest with Lua and ImGui support loaded.
 2. Run `/lua run ppqka/ppq_ka_manager`.
 3. Confirm the `PPQ KissAssist Manager` window opens.
-4. Press a dry-run button.
-5. Confirm a dry-run line prints to MQ chat and appears in the window log.
+4. Confirm character status and configured active profiles appear.
+5. Only change a profile dropdown when you are ready for the script to restart KissAssist on that character.
 
 See `docs/TESTING.md` for the current step-by-step testing workflow.
 

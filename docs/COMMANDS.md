@@ -2,7 +2,7 @@
 
 This document records the intended command patterns for DanNet and KissAssist control/status.
 
-The current Lua scaffold sends read-only DanNet status queries. It does not start, pause, resume, end, or otherwise control KissAssist yet.
+The current Lua scaffold sends read-only DanNet status queries. It also sends real per-character commands when an active profile dropdown is changed.
 
 ## Read-Only Status Queries
 
@@ -28,9 +28,25 @@ The UI reads the returned values from DanNet query results and interprets them a
 
 Active profile discovery is not wired yet.
 
+## Profile Dropdown Commands
+
+Changing a character's active profile dropdown updates the in-memory active profile and queues:
+
+```text
+/dex {character} /end
+```
+
+Then, after a short delay:
+
+```text
+/dex {character} /mac kissassist ini {profile} assist ma {assist}
+```
+
+This restart flow is intentional for now because it is predictable and avoids relying on mid-macro profile swapping.
+
 ## Character Commands
 
-These control commands are planned but are not dispatched by the main UI yet. They may appear in dry-run/debug previews.
+These control commands are planned for broader buttons later. Some may appear in dry-run/debug previews.
 
 Start KissAssist with the default assist:
 

@@ -9,6 +9,7 @@ local isOpen = true
 local shouldDraw = true
 local showDebug = false
 local dryRunLog = {}
+local commandQueue = {}
 local lastRefresh = 0
 local lastStatusQuery = 0
 local STATUS_QUERY_SECONDS = 8
@@ -172,30 +173,83 @@ local function formatList(items)
   return table.concat(items, ', ')
 end
 
-local function savedProfileFor(characterName)
+local function characterConfigKey(characterName)
+  return string.lower(characterName or '')
+end
+
+local function profileEntriesFor(characterName)
   local characterKey = string.lower(characterName or '')
+  local profiles = config.profiles or {}
+  local characterProfiles = profiles[characterName] or profiles[characterKey] or {}
+  local entries = {}
+
+  for key, profile in pairs(characterProfiles) do
+    local label = key
+    local ini = ''
+
+    if type(profile) == 'table' then
+      label = profile.label or key
+      ini = profile.ini or ''
+    elseif type(profile) == 'string' then
+      ini = profile
+    end
+
+    table.insert(entries, {
+      key = key,
+      label = label,
+      ini = ini,
+    })
+  end
+
+  table.sort(entries, function(left, right)
+    return left.label < right.label
+  end)
+
+  return entries
+end
+
+local function selectedProfileKeyFor(characterName)
+  local characterKey = characterConfigKey(characterName)
   local activeProfiles = config.active_profiles or {}
-  local profileKey = activeProfiles[characterName] or activeProfiles[characterKey]
+  return activeProfiles[characterName] or activeProfiles[characterKey]
+end
+
+local function selectedProfileFor(characterName)
+  local profileKey = selectedProfileKeyFor(characterName)
 
   if not profileKey then
-    return 'unknown'
+    return {
+      key = nil,
+      label = 'unknown',
+      ini = 'unknown',
+    }
   end
 
   local profiles = config.profiles or {}
-  local characterProfiles = profiles[characterName] or profiles[characterKey] or {}
+  local characterProfiles = profiles[characterName] or profiles[characterConfigKey(characterName)] or {}
   local profile = characterProfiles[profileKey]
 
   if type(profile) == 'table' then
-    local label = profile.label or profileKey
-    local ini = profile.ini or 'unknown'
-    return string.format('%s (%s)', label, ini)
+    return {
+      key = profileKey,
+      label = profile.label or profileKey,
+      ini = profile.ini or 'unknown',
+    }
   end
 
   if type(profile) == 'string' then
-    return string.format('%s (%s)', profileKey, profile)
+    return {
+      key = profileKey,
+      label = profileKey,
+      ini = profile,
+    }
   end
 
-  return tostring(profileKey)
+  return {
+    key = profileKey,
+    label = tostring(profileKey),
+    ini = 'unknown',
+  }
 end
 
 local function normalizePeerName(name)
@@ -352,12 +406,99 @@ local function logDryRun(label, commandText)
   print(line)
 end
 
+local function logAction(label, commandText)
+  local line = string.format('[%s] %s: %s', SCRIPT_NAME, label, commandText)
+  table.insert(dryRunLog, 1, line)
+
+  if #dryRunLog > 8 then
+    table.remove(dryRunLog)
+  end
+
+  print(line)
+end
+
+local function enqueueCommand(commandText, delaySeconds)
+  table.insert(commandQueue, {
+    due = os.time() + (delaySeconds or 0),
+    command = commandText,
+  })
+end
+
+local function processCommandQueue()
+  local now = os.time()
+  local index = 1
+
+  while index <= #commandQueue do
+    local queued = commandQueue[index]
+
+    if queued.due <= now then
+      mq.cmd(queued.command)
+      logAction('COMMAND', queued.command)
+      table.remove(commandQueue, index)
+    else
+      index = index + 1
+    end
+  end
+end
+
+local function runSelectedProfile(characterName, profile)
+  if not profile or not profile.ini or profile.ini == '' or profile.ini == 'unknown' then
+    logAction('SKIP', 'No configured INI for ' .. tostring(characterName))
+    return
+  end
+
+  local endCommand = string.format('/dex %s /end', characterName)
+  local startCommand = string.format('/dex %s /mac kissassist ini %s assist ma %s', characterName, profile.ini, config.assist or '')
+
+  enqueueCommand(endCommand, 0)
+  enqueueCommand(startCommand, 1.0)
+end
+
 local function drawStatusHeader()
   ImGui.Text('Character')
   ImGui.SameLine(150)
   ImGui.Text('Status')
   ImGui.SameLine(260)
   ImGui.Text('Active profile')
+  ImGui.SameLine(380)
+  ImGui.Text('Config file')
+end
+
+local function drawProfileDropdown(characterName)
+  local entries = profileEntriesFor(characterName)
+  local selectedKey = selectedProfileKeyFor(characterName)
+  local selectedProfile = selectedProfileFor(characterName)
+
+  if #entries == 0 then
+    ImGui.Text('unknown')
+    return selectedProfile
+  end
+
+  ImGui.SetNextItemWidth(100)
+
+  if ImGui.BeginCombo('##profile_' .. characterName, selectedProfile.label) then
+    for _, entry in ipairs(entries) do
+      local isSelected = entry.key == selectedKey
+
+      if ImGui.Selectable(entry.label, isSelected) and entry.key ~= selectedKey then
+        config.active_profiles[characterConfigKey(characterName)] = entry.key
+        selectedProfile = selectedProfileFor(characterName)
+        runSelectedProfile(characterName, selectedProfile)
+      end
+
+      if isSelected then
+        ImGui.SetItemDefaultFocus()
+      end
+    end
+
+    ImGui.EndCombo()
+  end
+
+  if ImGui.IsItemHovered() then
+    ImGui.SetTooltip(selectedProfile.ini)
+  end
+
+  return selectedProfile
 end
 
 local function drawStatusRow(characterName)
@@ -365,7 +506,9 @@ local function drawStatusRow(characterName)
   ImGui.SameLine(150)
   ImGui.Text(statusFor(characterName))
   ImGui.SameLine(260)
-  ImGui.Text(savedProfileFor(characterName))
+  local selectedProfile = drawProfileDropdown(characterName)
+  ImGui.SameLine(380)
+  ImGui.Text(selectedProfile.ini)
 end
 
 local function drawStatusOverview()
@@ -553,7 +696,7 @@ local function render()
       showDebug = not showDebug
     end
 
-    ImGui.Text('Read-only status scaffold. Macro status uses DanNet queries; profiles are still local/unknown.')
+    ImGui.Text('Status uses DanNet queries. Changing a profile restarts KissAssist on that character.')
     ImGui.Separator()
 
     if showDebug then
@@ -603,6 +746,8 @@ refreshPeerStatusQueries()
 lastStatusQuery = os.time()
 
 while not terminate do
+  processCommandQueue()
+
   local now = os.time()
   if now - lastRefresh >= 5 then
     refreshDanNetDiscovery()

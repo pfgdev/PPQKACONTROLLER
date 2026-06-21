@@ -57,6 +57,8 @@ Ordered groups to show in the main status table. `peers` is the DanNet group use
 
 Local saved active profile key by character name. This means "the profile this manager intends to load for that character," not necessarily a live value detected from KissAssist.
 
+Changing a profile in the UI currently updates this value in memory for the running script and immediately restarts KissAssist on that character with the selected profile. It does not write the config file back to disk yet.
+
 `profiles`
 
 Profile choices by character name. Each profile has a key, display label, and KissAssist INI filename.
