@@ -19,7 +19,7 @@ local lastRefresh = 0
 local lastStatusQuery = 0
 local STATUS_QUERY_SECONDS = 8
 local STATUS_READ_DELAY_SECONDS = 2
-local REPORTER_STALE_SECONDS = 20
+local REPORTER_STALE_SECONDS = 30
 local GROUP_UNGROUP_CONFIRM_READS = 3
 local STATUS_QUERIES = {
   REPORTER_VARIABLE,
@@ -316,6 +316,7 @@ end
 local function clearReporterStatus(status, age)
   status.reporter_seen = false
   status.reporter_stale = true
+  status.reporter_ignored_old = false
   status.reporter_age = age
   status.macro_name = ''
   status.macro_paused = nil
@@ -573,6 +574,16 @@ local function applyReporterPayload(status, payload)
 
   local reporterTimestamp = tonumber(report.ts)
 
+  if reporterTimestamp and status.reporter_ts and reporterTimestamp < status.reporter_ts then
+    local cachedAge = os.time() - status.reporter_ts
+
+    if cachedAge <= REPORTER_STALE_SECONDS then
+      status.reporter_ignored_old = true
+      status.reporter_ignored_old_age = os.time() - reporterTimestamp
+      return true
+    end
+  end
+
   if not isReporterFresh(report) then
     status.reporter_raw = tostring(payload or '')
     status.reporter_ts = reporterTimestamp
@@ -585,6 +596,7 @@ local function applyReporterPayload(status, payload)
 
   status.reporter_seen = true
   status.reporter_stale = false
+  status.reporter_ignored_old = false
   status.reporter_raw = tostring(payload or '')
   status.reporter_ts = reporterTimestamp
   status.reporter_age = 0
@@ -1438,19 +1450,44 @@ local function drawStatusHeader()
   ImGui.Text('Target behavior')
 end
 
+local function behaviorTextColor(state)
+  if state == 'run' then
+    return 0.45, 1.0, 0.55, 1.0
+  end
+
+  if state == 'manual' then
+    return 0.72, 0.82, 1.0, 1.0
+  end
+
+  if state == 'change' or state == 'checking' then
+    return 1.0, 0.82, 0.30, 1.0
+  end
+
+  if state == 'pause' or state == 'stale' or state == 'unknown' then
+    return 1.0, 0.48, 0.35, 1.0
+  end
+
+  return 1.0, 1.0, 1.0, 1.0
+end
+
+local function drawBehaviorText(text, state)
+  local red, green, blue, alpha = behaviorTextColor(state)
+  ImGui.TextColored(red, green, blue, alpha, text)
+end
+
 local function currentBehaviorFor(characterName)
   local inFlight = inFlightChangeFor(characterName)
 
   if inFlight then
     if inFlight.kind == 'profile' then
-      return '[CHG] -> ' .. changeTargetLabel(inFlight), profileForKey(characterName, inFlight.profile)
+      return '[CHG] -> ' .. changeTargetLabel(inFlight), profileForKey(characterName, inFlight.profile), 'change'
     end
 
     return '[CHG] -> Manual', {
       key = nil,
       label = 'Manual',
       ini = 'Ending KissAssist',
-    }
+    }, 'change'
   end
 
   local status = statusFor(characterName)
@@ -1458,26 +1495,26 @@ local function currentBehaviorFor(characterName)
   local selectedProfile = profileForIni(characterName, reportedStatus.kiss_ini) or selectedProfileFor(characterName)
 
   if status == 'active' then
-    return '[RUN] ' .. selectedProfile.label, selectedProfile
+    return '[RUN] ' .. selectedProfile.label, selectedProfile, 'run'
   end
 
   if status == 'paused' then
-    return '[PAUSE] ' .. selectedProfile.label, selectedProfile
+    return '[PAUSE] ' .. selectedProfile.label, selectedProfile, 'pause'
   end
 
   if status == 'checking' then
-    return '[CHK] Checking', selectedProfile
+    return '[CHK] Checking', selectedProfile, 'checking'
   end
 
   if status == 'unknown' then
     if reportedStatus.reporter_stale then
-      return '[STALE] Unknown', selectedProfile
+      return '[STALE] Unknown', selectedProfile, 'stale'
     end
 
-    return '[UNK] Unknown', selectedProfile
+    return '[UNK] Unknown', selectedProfile, 'unknown'
   end
 
-  return '[MAN] Manual', selectedProfile
+  return '[MAN] Manual', selectedProfile, 'manual'
 end
 
 local function pendingChangeLabel(characterName)
@@ -1544,12 +1581,12 @@ end
 
 local function drawStatusRow(characterName)
   local pending = pendingChangeFor(characterName)
-  local currentBehavior, currentProfile = currentBehaviorFor(characterName)
+  local currentBehavior, currentProfile, currentState = currentBehaviorFor(characterName)
   local displayName = pending and ('* ' .. characterName) or characterName
 
   ImGui.Text(displayName)
   ImGui.SameLine(180)
-  ImGui.Text(currentBehavior)
+  drawBehaviorText(currentBehavior, currentState)
 
   if ImGui.IsItemHovered() then
     ImGui.SetTooltip(currentProfile.ini)
@@ -1744,6 +1781,10 @@ local function drawDanNetDiscovery()
     ImGui.Text('Reporter: ' .. (status.reporter_seen and ('seen ' .. formatTimestamp(status.reporter_read_at)) or 'not seen'))
     if status.reporter_stale then
       ImGui.Text('Reporter stale: ' .. tostring(status.reporter_age or 'unknown') .. 's old')
+    end
+
+    if status.reporter_ignored_old then
+      ImGui.Text('Ignored older reporter payload: ' .. tostring(status.reporter_ignored_old_age or 'unknown') .. 's old')
     end
 
     ImGui.Text('Group.Members: ' .. tostring(status.group_members or 'unknown'))
