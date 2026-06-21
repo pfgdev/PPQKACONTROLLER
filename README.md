@@ -25,6 +25,7 @@ This repository is an initial scaffold only.
 |   +-- CONFIG.md
 |   +-- DECISIONS.md
 |   +-- ROADMAP.md
+|   +-- TESTING.md
 +-- lua/
     +-- ppq_ka_manager.lua
     +-- ppqka/
@@ -55,6 +56,8 @@ Stop it with:
 3. Confirm the `PPQ KissAssist Manager` window opens.
 4. Press a dry-run button.
 5. Confirm a dry-run line prints to MQ chat and appears in the window log.
+
+See `docs/TESTING.md` for the current step-by-step testing workflow.
 
 ## Design Principles
 

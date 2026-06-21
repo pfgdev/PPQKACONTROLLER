@@ -8,6 +8,15 @@ local terminate = false
 local isOpen = true
 local shouldDraw = true
 local dryRunLog = {}
+local lastRefresh = 0
+local discovery = {
+  local_name = 'unknown',
+  version = 'unknown',
+  peer_count = 0,
+  peers = {},
+  joined = {},
+  groups = {},
+}
 
 local ok, configOrError = pcall(require, CONFIG_MODULE)
 local config = ok and configOrError or {
@@ -21,6 +30,87 @@ local config = ok and configOrError or {
 
 if not ok then
   print(string.format('[%s] Failed to load %s: %s', SCRIPT_NAME, CONFIG_MODULE, tostring(configOrError)))
+end
+
+local function safeTlo(label, getter, fallback)
+  local success, value = pcall(getter)
+  if success and value ~= nil then
+    return value
+  end
+
+  return fallback
+end
+
+local function splitPipeList(value)
+  local items = {}
+  local text = tostring(value or '')
+
+  for item in text:gmatch('[^|]+') do
+    if item ~= '' then
+      table.insert(items, item)
+    end
+  end
+
+  table.sort(items)
+  return items
+end
+
+local function sortedGroupEntries(groups)
+  local entries = {}
+
+  for key, groupName in pairs(groups or {}) do
+    table.insert(entries, {
+      key = key,
+      name = groupName,
+    })
+  end
+
+  table.sort(entries, function(left, right)
+    return left.key < right.key
+  end)
+
+  return entries
+end
+
+local function refreshDanNetDiscovery()
+  discovery.local_name = safeTlo('DanNet.Name', function()
+    return mq.TLO.DanNet.Name()
+  end, 'unavailable')
+
+  discovery.version = safeTlo('DanNet.Version', function()
+    return mq.TLO.DanNet.Version()
+  end, 'unavailable')
+
+  discovery.peer_count = safeTlo('DanNet.PeerCount', function()
+    return mq.TLO.DanNet.PeerCount()
+  end, 0)
+
+  discovery.peers = splitPipeList(safeTlo('DanNet.Peers', function()
+    return mq.TLO.DanNet.Peers()
+  end, ''))
+
+  discovery.joined = splitPipeList(safeTlo('DanNet.Joined', function()
+    return mq.TLO.DanNet.Joined()
+  end, ''))
+
+  discovery.groups = {}
+
+  for _, group in ipairs(sortedGroupEntries(config.groups)) do
+    discovery.groups[group.key] = {
+      name = group.name,
+      peers = splitPipeList(safeTlo('DanNet.Peers[' .. group.name .. ']', function()
+        return mq.TLO.DanNet.Peers(group.name)()
+      end, '')),
+    }
+  end
+end
+
+local function formatList(items)
+  if not items or #items == 0 then
+    return '(none)'
+  end
+
+  return table.concat(items, ', ')
 end
 
 local function firstProfile(character)
@@ -166,6 +256,30 @@ local function drawGroupActions()
   end
 end
 
+local function drawDanNetDiscovery()
+  ImGui.Text('DanNet discovery')
+  ImGui.Text('Local: ' .. tostring(discovery.local_name))
+  ImGui.Text('Version: ' .. tostring(discovery.version))
+  ImGui.Text('Peer count: ' .. tostring(discovery.peer_count))
+  ImGui.TextWrapped('All peers: ' .. formatList(discovery.peers))
+  ImGui.TextWrapped('Joined groups: ' .. formatList(discovery.joined))
+
+  if ImGui.Button('Refresh DanNet') then
+    refreshDanNetDiscovery()
+    logDryRun('refresh', 'Read local DanNet peer/group TLOs')
+  end
+
+  ImGui.Separator()
+  ImGui.Text('Configured DanNet groups')
+
+  for _, group in ipairs(sortedGroupEntries(config.groups)) do
+    local groupDiscovery = discovery.groups[group.key] or { peers = {} }
+    ImGui.Text(group.key .. ': ' .. group.name)
+    ImGui.SameLine(180)
+    ImGui.TextWrapped(formatList(groupDiscovery.peers))
+  end
+end
+
 local function render()
   if not isOpen then
     return
@@ -177,6 +291,10 @@ local function render()
     ImGui.Text(config.name or 'Unnamed config')
     ImGui.Text('Assist: ' .. tostring(config.assist or ''))
     ImGui.Text('Current scaffold is dry-run only. No real commands are sent.')
+    ImGui.Separator()
+
+    drawDanNetDiscovery()
+
     ImGui.Separator()
 
     drawGroupActions()
@@ -210,8 +328,15 @@ local function render()
 end
 
 mq.imgui.init(SCRIPT_NAME, render)
+refreshDanNetDiscovery()
 
 while not terminate do
+  local now = os.time()
+  if now - lastRefresh >= 5 then
+    refreshDanNetDiscovery()
+    lastRefresh = now
+  end
+
   mq.delay(500)
 end
 

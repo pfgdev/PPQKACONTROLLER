@@ -7,6 +7,8 @@ return {
   groups = {
     all = 'g1',
     kiss = 'g1kiss',
+    group2 = 'g2',
+    group2kiss = 'g2kiss',
     manual = 'g1manual',
     melee = 'g1melee',
     heal = 'g1heal',
@@ -114,4 +116,3 @@ return {
     },
   },
 }
-

@@ -7,6 +7,7 @@
 - Create a minimal ImGui window.
 - Render placeholder character rows.
 - Log dry-run command previews only.
+- Add a read-only DanNet discovery view.
 
 ## Phase 1: MVP Command UI
 
