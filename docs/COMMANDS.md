@@ -20,12 +20,11 @@ Ask whether the peer's macro is paused:
 
 The UI reads the returned values from DanNet query results and interprets them as:
 
-- `active`: a macro with `kiss` in the name is running and not paused.
-- `paused`: a macro with `kiss` in the name is running and paused.
+- `active`: a macro with `kiss` in the name is running.
 - `inactive`: no macro is running, or a non-KissAssist macro is running.
 - `unknown`: no usable response has been received yet.
 
-The main table uses a short stabilization delay before changing the displayed status so transient DanNet query results do not cause visible flicker. The debug view shows raw macro values, observed status, and displayed status.
+`Macro.Paused` is still shown in debug, but it is not used for the main status yet. KissAssist can appear to pause its macro internally while doing work such as memorizing spells or buffing, so treating that as a user-facing paused state is misleading.
 
 Active profile discovery is not wired yet.
 
