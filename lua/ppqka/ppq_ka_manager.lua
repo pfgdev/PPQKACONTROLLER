@@ -18,9 +18,9 @@ local STATUS_QUERIES = {
   'Macro.Name',
 }
 local PAUSED_PROBE_READ_DELAY_SECONDS = 2
-local END_TO_START_DELAY_MS = 2500
-local LOADOUT_END_SPACING_MS = 250
-local LOADOUT_START_SPACING_MS = 750
+local DEFAULT_END_TO_START_DELAY_MS = 2000
+local DEFAULT_LOADOUT_END_SPACING_MS = 250
+local DEFAULT_LOADOUT_START_SPACING_MS = 750
 local discovery = {
   local_name = 'unknown',
   version = 'unknown',
@@ -43,6 +43,7 @@ local config = ok and configOrError or {
   display_groups = {},
   active_profiles = {},
   loadouts = {},
+  command_timing = {},
   characters = {},
   command_templates = {},
   command_sequences = {},
@@ -180,6 +181,11 @@ local function formatList(items)
   end
 
   return table.concat(items, ', ')
+end
+
+local function timingValue(key, fallback)
+  local timing = config.command_timing or {}
+  return tonumber(timing[key]) or fallback
 end
 
 local function characterConfigKey(characterName)
@@ -585,7 +591,7 @@ local function runSelectedProfile(characterName, profile)
 
   clearQueuedCommandsForCharacter(characterName)
   enqueueCommand(endCommand, 0, characterName)
-  enqueueCommand(startCommand, END_TO_START_DELAY_MS, characterName)
+  enqueueCommand(startCommand, timingValue('end_to_start_delay_ms', DEFAULT_END_TO_START_DELAY_MS), characterName)
 end
 
 local function loadCharacterProfile(characterName, profile, assist, endDelayMs, startDelayMs)
@@ -616,12 +622,16 @@ local function runLoadout(loadout)
 
   for index, entry in ipairs(entries) do
     config.active_profiles[characterConfigKey(entry.character)] = entry.profile
+    local endSpacingMs = timingValue('loadout_end_spacing_ms', DEFAULT_LOADOUT_END_SPACING_MS)
+    local startSpacingMs = timingValue('loadout_start_spacing_ms', DEFAULT_LOADOUT_START_SPACING_MS)
+    local restartDelayMs = timingValue('end_to_start_delay_ms', DEFAULT_END_TO_START_DELAY_MS)
+
     loadCharacterProfile(
       entry.character,
       profileForKey(entry.character, entry.profile),
       assist,
-      (index - 1) * LOADOUT_END_SPACING_MS,
-      END_TO_START_DELAY_MS + ((index - 1) * LOADOUT_START_SPACING_MS)
+      (index - 1) * endSpacingMs,
+      restartDelayMs + ((index - 1) * startSpacingMs)
     )
   end
 end
@@ -642,7 +652,11 @@ local function unloadLoadout(loadout)
   clearQueuedCommandsForTargets(targets)
 
   for index, entry in ipairs(entries) do
-    enqueueCommand(string.format('/dex %s /end', entry.character), (index - 1) * LOADOUT_END_SPACING_MS, entry.character)
+    enqueueCommand(
+      string.format('/dex %s /end', entry.character),
+      (index - 1) * timingValue('loadout_end_spacing_ms', DEFAULT_LOADOUT_END_SPACING_MS),
+      entry.character
+    )
   end
 end
 

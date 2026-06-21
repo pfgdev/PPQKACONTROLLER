@@ -14,3 +14,4 @@
 - Isolated `Macro.Paused` into a debug-only probe instead of mixing it with normal status polling.
 - Added config-defined loadouts with per-character Load and Unload actions.
 - Improved profile/loadout command queue timing to avoid `/end` racing after a new KissAssist start.
+- Moved profile/loadout command timing into config with a 2000ms end-to-start baseline.

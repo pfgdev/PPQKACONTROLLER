@@ -4,6 +4,12 @@ return {
   assist = 'Nandladin',
   dry_run = true,
 
+  command_timing = {
+    end_to_start_delay_ms = 2000,
+    loadout_end_spacing_ms = 250,
+    loadout_start_spacing_ms = 750,
+  },
+
   display_groups = {
     {
       label = 'Group 1',

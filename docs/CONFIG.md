@@ -18,6 +18,11 @@ return {
     group2 = 'g2',
     group2kiss = 'g2kiss',
   },
+  command_timing = {
+    end_to_start_delay_ms = 2000,
+    loadout_end_spacing_ms = 250,
+    loadout_start_spacing_ms = 750,
+  },
   profiles = {
     shadow = {
       default = { label = 'default', ini = 'KissAssist_Shadow.ini' },
@@ -83,6 +88,10 @@ Optional legacy/configured character definitions. The main status table should n
 `loadouts`
 
 Named profile mappings that can be applied with per-character DanNet commands.
+
+`command_timing`
+
+Timing values, in milliseconds, used by the command queue.
 
 `command_templates`
 
@@ -164,6 +173,20 @@ Main assist used when loading this loadout.
 `characters`
 
 Map of lower-case character names to profile keys. Characters not listed are visible in the status table but are not affected by Load or Unload.
+
+## Command Timing Fields
+
+`end_to_start_delay_ms`
+
+Delay between `/end` and `/mac kissassist`. The PPQ sample uses `2000`, matching the observed KissAssist DanNet delay baseline of 20 tenths of a second.
+
+`loadout_end_spacing_ms`
+
+Small stagger between `/end` commands when applying or unloading a loadout.
+
+`loadout_start_spacing_ms`
+
+Small stagger between `/mac kissassist` start commands when loading multiple characters.
 
 ## Character Fields
 

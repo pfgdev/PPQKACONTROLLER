@@ -65,7 +65,7 @@ Unload sends, for each character in the selected loadout:
 
 Characters not listed in the loadout are not affected.
 
-The command queue clears pending commands for affected characters before scheduling a new profile/loadout action. It also waits between `/end` and `/mac kissassist` so an old `/end` does not finish after the new macro starts.
+The command queue clears pending commands for affected characters before scheduling a new profile/loadout action. It also waits between `/end` and `/mac kissassist` so an old `/end` does not finish after the new macro starts. The PPQ sample config uses a 2000ms end-to-start delay.
 
 ## Character Commands
 
