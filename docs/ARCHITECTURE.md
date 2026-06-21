@@ -36,7 +36,7 @@ The MVP will build strings from templates, show those strings in the UI where us
 
 ### Command Dispatcher
 
-The status layer uses `mq.cmdf()` for read-only DanNet `/dquery` probes. Profile dropdown changes use a small queued dispatcher to send real `/dex` commands without blocking ImGui rendering.
+The status layer uses `mq.cmdf()` for read-only DanNet `/dquery` probes. Normal status polling queries `Macro.Name`; `Macro.Paused` is available through an isolated debug probe. Profile dropdown changes use a small queued dispatcher to send real `/dex` commands without blocking ImGui rendering.
 
 Current scaffold behavior:
 

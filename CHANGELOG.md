@@ -11,3 +11,4 @@
 - Added configured active profile selections and labels.
 - Changed main status to ignore transient `Macro.Paused` values and treat a running KissAssist macro as active.
 - Added active profile dropdowns that restart KissAssist on the selected character.
+- Isolated `Macro.Paused` into a debug-only probe instead of mixing it with normal status polling.

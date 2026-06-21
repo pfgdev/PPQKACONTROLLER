@@ -18,13 +18,15 @@ Ask whether the peer's macro is paused:
 /dquery {character} -q Macro.Paused -t 1000
 ```
 
+The normal background status poll only queries `Macro.Name`. `Macro.Paused` is queried only from the debug button so it can be tested without mixing it with the regular status poll.
+
 The UI reads the returned values from DanNet query results and interprets them as:
 
 - `active`: a macro with `kiss` in the name is running.
 - `inactive`: no macro is running, or a non-KissAssist macro is running.
 - `unknown`: no usable response has been received yet.
 
-`Macro.Paused` is still shown in debug, but it is not used for the main status yet. KissAssist can appear to pause its macro internally while doing work such as memorizing spells or buffing, so treating that as a user-facing paused state is misleading.
+`Macro.Paused` is not used for the main status yet. The debug view has a `Probe Macro.Paused only` button that briefly pauses normal `Macro.Name` polling, submits isolated paused queries, and shows the raw returned values.
 
 Active profile discovery is not wired yet.
 

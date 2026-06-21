@@ -15,8 +15,8 @@ local lastStatusQuery = 0
 local STATUS_QUERY_SECONDS = 8
 local STATUS_QUERIES = {
   'Macro.Name',
-  'Macro.Paused',
 }
+local PAUSED_PROBE_READ_DELAY_SECONDS = 2
 local discovery = {
   local_name = 'unknown',
   version = 'unknown',
@@ -26,6 +26,10 @@ local discovery = {
   groups = {},
 }
 local statusCache = {}
+local pausedProbe = {
+  quiet_until = 0,
+  results = {},
+}
 
 local ok, configOrError = pcall(require, CONFIG_MODULE)
 local config = ok and configOrError or {
@@ -265,9 +269,6 @@ local function readLocalMacroStatus()
     macro_name = safeTlo('Macro.Name', function()
       return mq.TLO.Macro.Name()
     end, ''),
-    macro_paused = safeTlo('Macro.Paused', function()
-      return mq.TLO.Macro.Paused()
-    end, false),
     query_ok = true,
   }
 end
@@ -283,7 +284,6 @@ local function submitPeerStatusQueries(peer)
     local cached = statusCache[peer] or {}
     local localStatus = readLocalMacroStatus()
     cached.macro_name = localStatus.macro_name
-    cached.macro_paused = localStatus.macro_paused
     cached.query_ok = localStatus.query_ok
     statusCache[peer] = cached
     return
@@ -313,7 +313,6 @@ local function updatePeerStatusFromQueries(peer)
     local cached = statusCache[peer] or {}
     local localStatus = readLocalMacroStatus()
     cached.macro_name = localStatus.macro_name
-    cached.macro_paused = localStatus.macro_paused
     cached.query_ok = localStatus.query_ok
     statusCache[peer] = cached
     return cached
@@ -321,17 +320,12 @@ local function updatePeerStatusFromQueries(peer)
 
   local status = statusCache[peer] or {}
   local macroName = readPeerQuery(peer, 'Macro.Name')
-  local macroPaused = readPeerQuery(peer, 'Macro.Paused')
 
   if macroName ~= nil then
     status.macro_name = tostring(macroName)
   end
 
-  if macroPaused ~= nil then
-    status.macro_paused = tostring(macroPaused)
-  end
-
-  status.query_ok = status.macro_name ~= nil or status.macro_paused ~= nil
+  status.query_ok = status.macro_name ~= nil
   statusCache[peer] = status
   return status
 end
@@ -415,6 +409,62 @@ local function logAction(label, commandText)
   end
 
   print(line)
+end
+
+local function formatTimestamp(timestamp)
+  if not timestamp then
+    return 'never'
+  end
+
+  return os.date('%H:%M:%S', timestamp)
+end
+
+local function submitPausedProbe()
+  local now = os.time()
+  pausedProbe.quiet_until = now + PAUSED_PROBE_READ_DELAY_SECONDS + 2
+
+  for _, peer in ipairs(allDisplayPeers()) do
+    pausedProbe.results[peer] = pausedProbe.results[peer] or {}
+    pausedProbe.results[peer].requested_at = now
+    pausedProbe.results[peer].read_at = nil
+    pausedProbe.results[peer].read_after = now + PAUSED_PROBE_READ_DELAY_SECONDS
+    pausedProbe.results[peer].value = 'pending'
+    pausedProbe.results[peer].error = nil
+
+    if isLocalPeer(peer) then
+      pausedProbe.results[peer].value = tostring(safeTlo('Macro.Paused', function()
+        return mq.TLO.Macro.Paused()
+      end, 'unknown'))
+      pausedProbe.results[peer].read_at = now
+      pausedProbe.results[peer].read_after = nil
+    else
+      local success, errorMessage = pcall(function()
+        mq.cmdf('/dquery %s -q Macro.Paused -t 1000', peer)
+      end)
+
+      if not success then
+        pausedProbe.results[peer].value = 'error'
+        pausedProbe.results[peer].error = tostring(errorMessage)
+        pausedProbe.results[peer].read_at = now
+        pausedProbe.results[peer].read_after = nil
+      end
+    end
+  end
+
+  logAction('PROBE', 'Submitted isolated Macro.Paused queries')
+end
+
+local function updatePausedProbeReads()
+  local now = os.time()
+
+  for peer, result in pairs(pausedProbe.results) do
+    if result.read_after and now >= result.read_after then
+      local value = readPeerQuery(peer, 'Macro.Paused')
+      result.value = value == nil and 'nil' or tostring(value)
+      result.read_at = now
+      result.read_after = nil
+    end
+  end
 end
 
 local function enqueueCommand(commandText, delaySeconds)
@@ -660,15 +710,27 @@ local function drawDanNetDiscovery()
   ImGui.Separator()
   ImGui.Text('Status query debug')
 
+  if ImGui.Button('Probe Macro.Paused only') then
+    submitPausedProbe()
+  end
+
+  ImGui.Text('Normal polling query: Macro.Name')
+
   for _, peer in ipairs(allDisplayPeers()) do
     local status = updatePeerStatusFromQueries(peer)
+    local probe = pausedProbe.results[peer] or {}
+
     ImGui.Text(peer)
     ImGui.SameLine(150)
     ImGui.Text('Macro.Name: ' .. tostring(status.macro_name or 'unknown'))
     ImGui.SameLine(360)
-    ImGui.Text('Paused: ' .. tostring(status.macro_paused or 'unknown'))
+    ImGui.Text('Paused probe: ' .. tostring(probe.value or 'not run'))
+    ImGui.SameLine(560)
+    ImGui.Text('Read: ' .. formatTimestamp(probe.read_at))
 
-    if status.query_error then
+    if probe.error then
+      ImGui.TextWrapped('Paused probe error: ' .. probe.error)
+    elseif status.query_error then
       ImGui.TextWrapped('Query error: ' .. status.query_error)
     end
   end
@@ -747,6 +809,7 @@ lastStatusQuery = os.time()
 
 while not terminate do
   processCommandQueue()
+  updatePausedProbeReads()
 
   local now = os.time()
   if now - lastRefresh >= 5 then
@@ -754,7 +817,7 @@ while not terminate do
     lastRefresh = now
   end
 
-  if now - lastStatusQuery >= STATUS_QUERY_SECONDS then
+  if now - lastStatusQuery >= STATUS_QUERY_SECONDS and now >= pausedProbe.quiet_until then
     refreshPeerStatusQueries()
     lastStatusQuery = now
   end

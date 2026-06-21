@@ -67,7 +67,9 @@ Expected result in PPQ KissAssist Manager:
 - Configured groups show peer names if DanNet reports peers for those groups.
 - The top table shows `active`, `paused`, `inactive`, or `unknown` after DanNet status queries return.
 
-This test uses read-only `/dquery` status probes for `Macro.Name` and `Macro.Paused`.
+This test uses read-only `/dquery` status probes for `Macro.Name`.
+
+To test `Macro.Paused`, open debug and press `Probe Macro.Paused only`. That button briefly pauses normal `Macro.Name` polling and submits only paused queries so the raw paused results are easier to inspect.
 
 Changing a profile dropdown is not read-only. It sends `/dex {character} /end`, then `/dex {character} /mac kissassist ini {profile} assist ma {assist}`.
 
