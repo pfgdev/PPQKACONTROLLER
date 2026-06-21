@@ -20,3 +20,4 @@
 - Added a short checking state for newly visible peers and made target choices that match current behavior clear back to `No Change`.
 - Prevented loadout staging from creating pending changes for targets that already match the current behavior.
 - Replaced configured display-group organization with live EQ group panels plus a final `Ungrouped` section.
+- Smoothed live group assignment to avoid transient DanNet group-query flicker and rejected numeric group leader/main-assist values.

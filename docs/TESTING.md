@@ -73,6 +73,8 @@ This test uses read-only `/dquery` status probes for `Macro.Name`.
 
 To test `Macro.Paused`, open debug and press `Probe Macro.Paused only`. That button briefly pauses normal `Macro.Name` polling and submits only paused queries so the raw paused results are easier to inspect.
 
+If group rows flicker, open debug and inspect the raw `Group.Members`, `Leader`, `MA`, and `Ungroup reads` values for the affected peer.
+
 Changing a target behavior dropdown only stages a pending change. It does not send commands until `Apply` is clicked.
 
 `Stage Loadout` and `Stage Unload` only stage pending changes. `Apply` sends the real `/dex` commands for the staged characters. Characters not included in the staged loadout are not affected.

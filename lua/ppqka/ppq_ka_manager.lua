@@ -16,6 +16,7 @@ local lastRefresh = 0
 local lastStatusQuery = 0
 local STATUS_QUERY_SECONDS = 8
 local STATUS_READ_DELAY_SECONDS = 2
+local GROUP_UNGROUP_CONFIRM_READS = 3
 local STATUS_QUERIES = {
   'Macro.Name',
   'Group.Members',
@@ -141,7 +142,12 @@ local function cleanTloName(value)
   local text = tostring(value or '')
   local normalized = string.lower(text)
 
-  if text == '' or normalized == 'null' or normalized == 'nil' or normalized == 'unknown' or normalized == 'unavailable' then
+  if text == ''
+    or normalized == 'null'
+    or normalized == 'nil'
+    or normalized == 'unknown'
+    or normalized == 'unavailable'
+    or text:match('^%d+$') then
     return nil
   end
 
@@ -390,6 +396,7 @@ local function submitPeerStatusQueries(peer)
     cached.query_pending = false
     cached.requested_at = os.time()
     cached.read_at = os.time()
+    cached.group_read_at = os.time()
     cached.read_after = nil
     statusCache[peer] = cached
     return
@@ -431,6 +438,7 @@ local function updatePeerStatusFromQueries(peer)
     cached.query_pending = false
     cached.requested_at = os.time()
     cached.read_at = os.time()
+    cached.group_read_at = os.time()
     cached.read_after = nil
     statusCache[peer] = cached
     return cached
@@ -460,16 +468,19 @@ local function updatePeerStatusFromQueries(peer)
   if groupMembers ~= nil then
     status.group_members = tostring(groupMembers)
     status.read_at = os.time()
+    status.group_read_at = os.time()
   end
 
   if groupLeader ~= nil then
     status.group_leader = tostring(groupLeader)
     status.read_at = os.time()
+    status.group_read_at = os.time()
   end
 
   if groupMainAssist ~= nil then
     status.group_main_assist = tostring(groupMainAssist)
     status.read_at = os.time()
+    status.group_read_at = os.time()
   end
 
   status.query_pending = false
@@ -513,8 +524,51 @@ local function groupOrderFor(key)
   return groupFirstSeen[key]
 end
 
-local function peerGroupInfo(peer)
-  local status = updatePeerStatusFromQueries(peer)
+local function localGroupSnapshot()
+  local memberCount = tonumber(safeTlo('Group.Members', function()
+    return mq.TLO.Group.Members()
+  end, 0)) or 0
+
+  if memberCount <= 0 then
+    return nil
+  end
+
+  local leader = cleanTloName(safeTlo('Group.Leader.Name', function()
+    return mq.TLO.Group.Leader.Name()
+  end, nil))
+
+  if not leader then
+    return nil
+  end
+
+  local members = {}
+
+  for index = 0, memberCount do
+    local memberName = cleanTloName(safeTlo('Group.Member[' .. tostring(index) .. '].Name', function()
+      return mq.TLO.Group.Member(index).Name()
+    end, nil))
+
+    if memberName then
+      members[normalizePeerName(memberName)] = true
+    end
+  end
+
+  local mainAssist = cleanTloName(safeTlo('Group.MainAssist.Name', function()
+    return mq.TLO.Group.MainAssist.Name()
+  end, nil))
+  local key = 'group:' .. normalizePeerName(leader)
+
+  return {
+    key = key,
+    label = leader .. "'s Group",
+    leader = leader,
+    main_assist = mainAssist,
+    members = members,
+    grouped = true,
+  }
+end
+
+local function rawPeerGroupInfo(status)
   local memberCount = tonumber(status.group_members) or 0
   local leader = cleanTloName(status.group_leader)
   local mainAssist = cleanTloName(status.group_main_assist)
@@ -536,8 +590,41 @@ local function peerGroupInfo(peer)
   }
 end
 
+local function stablePeerGroupInfo(peer)
+  local status = updatePeerStatusFromQueries(peer)
+  local rawInfo = rawPeerGroupInfo(status)
+  local state = status.group_state or {
+    ungrouped_reads = 0,
+    last_group_read_at = nil,
+  }
+  local hasFreshGroupRead = status.group_read_at and status.group_read_at ~= state.last_group_read_at
+
+  if rawInfo.grouped then
+    state.info = rawInfo
+    state.ungrouped_reads = 0
+    state.last_group_read_at = status.group_read_at
+    status.group_state = state
+    return rawInfo
+  end
+
+  if hasFreshGroupRead then
+    state.ungrouped_reads = (state.ungrouped_reads or 0) + 1
+    state.last_group_read_at = status.group_read_at
+  end
+
+  if state.info and state.info.grouped and (state.ungrouped_reads or 0) < GROUP_UNGROUP_CONFIRM_READS then
+    status.group_state = state
+    return state.info
+  end
+
+  state.info = rawInfo
+  status.group_state = state
+  return rawInfo
+end
+
 local function actualGroupViews()
   local grouped = {}
+  local localGroup = localGroupSnapshot()
   local ungrouped = {
     key = 'ungrouped',
     label = 'Ungrouped',
@@ -548,7 +635,8 @@ local function actualGroupViews()
   local localGroupKey = nil
 
   for _, peer in ipairs(allKnownPeers()) do
-    local info = peerGroupInfo(peer)
+    local peerKey = normalizePeerName(peer)
+    local info = localGroup and localGroup.members[peerKey] and localGroup or stablePeerGroupInfo(peer)
 
     if info.grouped then
       local group = grouped[info.key]
@@ -570,7 +658,7 @@ local function actualGroupViews()
 
       table.insert(group.peers, peer)
 
-      if isLocalPeer(peer) then
+      if isLocalPeer(peer) or (localGroup and info.key == localGroup.key) then
         localGroupKey = info.key
       end
     else
@@ -1273,11 +1361,12 @@ local function drawDanNetDiscovery()
     submitPausedProbe()
   end
 
-  ImGui.Text('Normal polling query: Macro.Name')
+  ImGui.Text('Normal polling queries: Macro.Name and Group.*')
 
   for _, peer in ipairs(allDisplayPeers()) do
     local status = updatePeerStatusFromQueries(peer)
     local probe = pausedProbe.results[peer] or {}
+    local groupState = status.group_state or {}
 
     ImGui.Text(peer)
     ImGui.SameLine(150)
@@ -1286,6 +1375,13 @@ local function drawDanNetDiscovery()
     ImGui.Text('Paused probe: ' .. tostring(probe.value or 'not run'))
     ImGui.SameLine(560)
     ImGui.Text('Read: ' .. formatTimestamp(probe.read_at))
+    ImGui.Text('Group.Members: ' .. tostring(status.group_members or 'unknown'))
+    ImGui.SameLine(180)
+    ImGui.Text('Leader: ' .. tostring(status.group_leader or 'unknown'))
+    ImGui.SameLine(360)
+    ImGui.Text('MA: ' .. tostring(status.group_main_assist or 'unknown'))
+    ImGui.SameLine(500)
+    ImGui.Text('Ungroup reads: ' .. tostring(groupState.ungrouped_reads or 0))
 
     if probe.error then
       ImGui.TextWrapped('Paused probe error: ' .. probe.error)
