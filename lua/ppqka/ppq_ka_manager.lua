@@ -18,6 +18,9 @@ local STATUS_QUERIES = {
   'Macro.Name',
 }
 local PAUSED_PROBE_READ_DELAY_SECONDS = 2
+local END_TO_START_DELAY_MS = 2500
+local LOADOUT_END_SPACING_MS = 250
+local LOADOUT_START_SPACING_MS = 750
 local discovery = {
   local_name = 'unknown',
   version = 'unknown',
@@ -526,15 +529,16 @@ local function updatePausedProbeReads()
   end
 end
 
-local function enqueueCommand(commandText, delaySeconds)
+local function enqueueCommand(commandText, delayMs, target)
   table.insert(commandQueue, {
-    due = os.time() + (delaySeconds or 0),
+    due = mq.gettime() + (delayMs or 0),
     command = commandText,
+    target = target,
   })
 end
 
 local function processCommandQueue()
-  local now = os.time()
+  local now = mq.gettime()
   local index = 1
 
   while index <= #commandQueue do
@@ -550,6 +554,26 @@ local function processCommandQueue()
   end
 end
 
+local function clearQueuedCommandsForTargets(targets)
+  local index = 1
+
+  while index <= #commandQueue do
+    local queued = commandQueue[index]
+
+    if queued.target and targets[characterConfigKey(queued.target)] then
+      table.remove(commandQueue, index)
+    else
+      index = index + 1
+    end
+  end
+end
+
+local function clearQueuedCommandsForCharacter(characterName)
+  clearQueuedCommandsForTargets({
+    [characterConfigKey(characterName)] = true,
+  })
+end
+
 local function runSelectedProfile(characterName, profile)
   if not profile or not profile.ini or profile.ini == '' or profile.ini == 'unknown' then
     logAction('SKIP', 'No configured INI for ' .. tostring(characterName))
@@ -559,19 +583,19 @@ local function runSelectedProfile(characterName, profile)
   local endCommand = string.format('/dex %s /end', characterName)
   local startCommand = string.format('/dex %s /mac kissassist ini %s assist ma %s', characterName, profile.ini, config.assist or '')
 
-  enqueueCommand(endCommand, 0)
-  enqueueCommand(startCommand, 1.0)
+  clearQueuedCommandsForCharacter(characterName)
+  enqueueCommand(endCommand, 0, characterName)
+  enqueueCommand(startCommand, END_TO_START_DELAY_MS, characterName)
 end
 
-local function loadCharacterProfile(characterName, profile, assist, delayOffset)
+local function loadCharacterProfile(characterName, profile, assist, endDelayMs, startDelayMs)
   if not profile or not profile.ini or profile.ini == '' or profile.ini == 'unknown' then
     logAction('SKIP', 'No configured INI for ' .. tostring(characterName))
-    return delayOffset
+    return
   end
 
-  enqueueCommand(string.format('/dex %s /end', characterName), delayOffset)
-  enqueueCommand(string.format('/dex %s /mac kissassist ini %s assist ma %s', characterName, profile.ini, assist or config.assist or ''), delayOffset + 1)
-  return delayOffset + 1
+  enqueueCommand(string.format('/dex %s /end', characterName), endDelayMs, characterName)
+  enqueueCommand(string.format('/dex %s /mac kissassist ini %s assist ma %s', characterName, profile.ini, assist or config.assist or ''), startDelayMs, characterName)
 end
 
 local function runLoadout(loadout)
@@ -580,12 +604,25 @@ local function runLoadout(loadout)
     return
   end
 
-  local delayOffset = 0
   local assist = loadout.assist or config.assist
+  local targets = {}
+  local entries = loadoutCharacterEntries(loadout)
 
-  for _, entry in ipairs(loadoutCharacterEntries(loadout)) do
+  for _, entry in ipairs(entries) do
+    targets[characterConfigKey(entry.character)] = true
+  end
+
+  clearQueuedCommandsForTargets(targets)
+
+  for index, entry in ipairs(entries) do
     config.active_profiles[characterConfigKey(entry.character)] = entry.profile
-    delayOffset = loadCharacterProfile(entry.character, profileForKey(entry.character, entry.profile), assist, delayOffset)
+    loadCharacterProfile(
+      entry.character,
+      profileForKey(entry.character, entry.profile),
+      assist,
+      (index - 1) * LOADOUT_END_SPACING_MS,
+      END_TO_START_DELAY_MS + ((index - 1) * LOADOUT_START_SPACING_MS)
+    )
   end
 end
 
@@ -595,11 +632,17 @@ local function unloadLoadout(loadout)
     return
   end
 
-  local delayOffset = 0
+  local targets = {}
+  local entries = loadoutCharacterEntries(loadout)
 
-  for _, entry in ipairs(loadoutCharacterEntries(loadout)) do
-    enqueueCommand(string.format('/dex %s /end', entry.character), delayOffset)
-    delayOffset = delayOffset + 1
+  for _, entry in ipairs(entries) do
+    targets[characterConfigKey(entry.character)] = true
+  end
+
+  clearQueuedCommandsForTargets(targets)
+
+  for index, entry in ipairs(entries) do
+    enqueueCommand(string.format('/dex %s /end', entry.character), (index - 1) * LOADOUT_END_SPACING_MS, entry.character)
   end
 end
 

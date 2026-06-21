@@ -38,6 +38,8 @@ The MVP will build strings from templates, show those strings in the UI where us
 
 The status layer uses `mq.cmdf()` for read-only DanNet `/dquery` probes. Normal status polling queries `Macro.Name`; `Macro.Paused` is available through an isolated debug probe. Profile dropdown changes and loadout actions use a small queued dispatcher to send real per-character `/dex` commands without blocking ImGui rendering.
 
+The command queue uses `mq.gettime()` millisecond timing. Before scheduling a profile or loadout action, it clears pending queued commands for the affected characters and leaves a delay between `/end` and `/mac kissassist`.
+
 Current scaffold behavior:
 
 - Read-only DanNet status query dispatch.

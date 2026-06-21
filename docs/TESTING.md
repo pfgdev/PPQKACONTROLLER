@@ -75,6 +75,8 @@ Changing a profile dropdown is not read-only. It sends `/dex {character} /end`, 
 
 Loadout buttons are also not read-only. `Load` ends and starts each included character with its configured profile. `Unload` ends each included character. Characters not included in the loadout are not affected.
 
+If a character starts KissAssist and then immediately prints that the macro ended, the end/start delay may still be too short for that character or server conditions. Report which character did it and whether it happened after pressing `Load`, changing a profile dropdown, or pressing `Unload` then `Load`.
+
 ## Local Syntax Check
 
 Install LuaJIT:

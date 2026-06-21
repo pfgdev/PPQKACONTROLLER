@@ -65,6 +65,8 @@ Unload sends, for each character in the selected loadout:
 
 Characters not listed in the loadout are not affected.
 
+The command queue clears pending commands for affected characters before scheduling a new profile/loadout action. It also waits between `/end` and `/mac kissassist` so an old `/end` does not finish after the new macro starts.
+
 ## Character Commands
 
 These control commands are planned for broader buttons later. Some may appear in dry-run/debug previews.
