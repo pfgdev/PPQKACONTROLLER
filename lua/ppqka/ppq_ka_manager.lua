@@ -11,6 +11,7 @@ local isOpen = true
 local shouldDraw = true
 local showDebug = false
 local selectedLoadoutKey = nil
+local targetLoadoutModified = false
 local LOADOUT_NONE_KEY = '__none__'
 local LOADOUT_UNLOAD_KEY = '__unload_all__'
 local pendingChanges = {}
@@ -485,7 +486,7 @@ local function loadoutEntries()
   local entries = {
     {
       key = LOADOUT_NONE_KEY,
-      label = 'No Target Selected',
+      label = 'No Change',
       kind = 'none',
     },
   }
@@ -514,7 +515,7 @@ local function selectedLoadout()
 
   return {
     key = LOADOUT_NONE_KEY,
-    label = 'No Target Selected',
+    label = 'No Change',
     kind = 'none',
   }
 end
@@ -1440,6 +1441,7 @@ end
 local function clearTargetSelection()
   clearPendingChanges()
   selectedLoadoutKey = LOADOUT_NONE_KEY
+  targetLoadoutModified = false
 end
 
 local function pendingChangeCount()
@@ -1450,6 +1452,16 @@ local function pendingChangeCount()
   end
 
   return count
+end
+
+local function markTargetModified()
+  if pendingChangeCount() == 0 then
+    selectedLoadoutKey = LOADOUT_NONE_KEY
+    targetLoadoutModified = false
+    return
+  end
+
+  targetLoadoutModified = true
 end
 
 local function stageManualTarget(characterName)
@@ -1541,6 +1553,7 @@ local function selectTargetLoadout(loadout)
   local stagedCount = 0
 
   selectedLoadoutKey = targetKey
+  targetLoadoutModified = false
   clearPendingChanges()
 
   if loadout and loadout.kind ~= 'none' then
@@ -1548,6 +1561,7 @@ local function selectTargetLoadout(loadout)
   end
 
   selectedLoadoutKey = targetKey
+  targetLoadoutModified = false
   return stagedCount
 end
 
@@ -1730,6 +1744,7 @@ end
 local function drawLoadoutControls()
   local entries = loadoutEntries()
   local loadout = selectedLoadout()
+  local loadoutPreview = targetLoadoutModified and 'Modified Target' or (loadout.label or loadout.key or 'unknown')
   local changeCount = pendingChangeCount()
 
   ImGui.Text('Current Loadout')
@@ -1746,9 +1761,9 @@ local function drawLoadoutControls()
 
   ImGui.SetNextItemWidth(220)
 
-  if ImGui.BeginCombo('##loadout_selector', loadout.label or loadout.key or 'unknown') then
+  if ImGui.BeginCombo('##loadout_selector', loadoutPreview) then
     for _, entry in ipairs(entries) do
-      local isSelected = entry.key == (loadout and loadout.key)
+      local isSelected = not targetLoadoutModified and entry.key == (loadout and loadout.key)
       local _, clicked = ImGui.Selectable(tostring(entry.label or entry.key or 'unknown'), isSelected)
 
       if clicked then
@@ -1864,6 +1879,7 @@ local function drawTargetDropdown(characterName)
 
     if noChangeClicked then
       clearPendingChange(characterName)
+      markTargetModified()
     end
 
     if pending == nil then
@@ -1879,6 +1895,8 @@ local function drawTargetDropdown(characterName)
       else
         stageManualTarget(characterName)
       end
+
+      markTargetModified()
     end
 
     if manualSelected then
@@ -1890,6 +1908,7 @@ local function drawTargetDropdown(characterName)
 
       if separatorClicked then
         clearPendingChange(characterName)
+        markTargetModified()
       end
     end
 
@@ -1903,6 +1922,8 @@ local function drawTargetDropdown(characterName)
         else
           stageProfileTarget(characterName, entry.key, (selectedLoadout() and selectedLoadout().assist) or config.assist)
         end
+
+        markTargetModified()
       end
 
       if isSelected then
