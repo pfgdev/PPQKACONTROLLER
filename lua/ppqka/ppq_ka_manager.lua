@@ -1735,6 +1735,16 @@ local function displayCharacterName(characterName)
   return text:gsub('^%l', string.upper)
 end
 
+local STATUS_TABLE_CHARACTER_WIDTH = 175.0
+local STATUS_TABLE_CURRENT_WIDTH = 205.0
+local STATUS_TABLE_TARGET_WIDTH = 260.0
+local STATUS_TABLE_UNDO_WIDTH = 72.0
+local STATUS_TABLE_UNDO_BUTTON_WIDTH = 24.0
+local STATUS_TABLE_WIDTH = STATUS_TABLE_CHARACTER_WIDTH
+  + STATUS_TABLE_CURRENT_WIDTH
+  + STATUS_TABLE_TARGET_WIDTH
+  + STATUS_TABLE_UNDO_WIDTH
+
 local function drawStatusRow(characterName)
   local pending = pendingChangeFor(characterName)
   local currentBehavior, currentProfile, currentState = currentBehaviorFor(characterName)
@@ -1767,8 +1777,8 @@ local function drawStatusRow(characterName)
 
   ImGui.TableNextColumn()
   if pending then
-    ImGui.SetCursorPosX(ImGui.GetCursorPosX() + 14)
-    if ImGui.Button('X##clear_target_' .. characterName) then
+    ImGui.SetCursorPosX(ImGui.GetCursorPosX() + ((STATUS_TABLE_UNDO_WIDTH - STATUS_TABLE_UNDO_BUTTON_WIDTH) * 0.5))
+    if ImGui.Button('X##clear_target_' .. characterName, ImVec2(STATUS_TABLE_UNDO_BUTTON_WIDTH, 0)) then
       clearPendingChange(characterName)
     end
   else
@@ -1780,11 +1790,11 @@ local function drawStatusTable(group, peers)
   local tableId = 'status_table_' .. tostring(group.key or group.label or group.peers or 'group')
   local flags = bit32.bor(ImGuiTableFlags.Borders, ImGuiTableFlags.RowBg, ImGuiTableFlags.SizingFixedFit, ImGuiTableFlags.NoHostExtendX)
 
-  if ImGui.BeginTable(tableId, 4, flags, ImVec2(730, 0)) then
-    ImGui.TableSetupColumn('Character', ImGuiTableColumnFlags.WidthFixed, 175.0)
-    ImGui.TableSetupColumn('Current Behavior', ImGuiTableColumnFlags.WidthFixed, 205.0)
-    ImGui.TableSetupColumn('Target Behavior', ImGuiTableColumnFlags.WidthFixed, 260.0)
-    ImGui.TableSetupColumn('Undo', ImGuiTableColumnFlags.WidthFixed, 90.0)
+  if ImGui.BeginTable(tableId, 4, flags, ImVec2(STATUS_TABLE_WIDTH, 0)) then
+    ImGui.TableSetupColumn('Character', ImGuiTableColumnFlags.WidthFixed, STATUS_TABLE_CHARACTER_WIDTH)
+    ImGui.TableSetupColumn('Current Behavior', ImGuiTableColumnFlags.WidthFixed, STATUS_TABLE_CURRENT_WIDTH)
+    ImGui.TableSetupColumn('Target Behavior', ImGuiTableColumnFlags.WidthFixed, STATUS_TABLE_TARGET_WIDTH)
+    ImGui.TableSetupColumn('Undo', ImGuiTableColumnFlags.WidthFixed, STATUS_TABLE_UNDO_WIDTH)
     ImGui.TableHeadersRow()
 
     for _, peer in ipairs(peers) do
