@@ -18,3 +18,4 @@
 - Added live MacroQuest group display with configured DanNet groups as fallback.
 - Changed profile/loadout controls to stage pending target behavior changes before `Apply` sends commands.
 - Added a short checking state for newly visible peers and made target choices that match current behavior clear back to `No Change`.
+- Prevented loadout staging from creating pending changes for targets that already match the current behavior.

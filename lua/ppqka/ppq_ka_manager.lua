@@ -521,6 +521,20 @@ local function statusFor(characterName)
   return 'unknown'
 end
 
+local function targetMatchesCurrent(characterName, kind, profileKey)
+  local status = statusFor(characterName)
+
+  if status == 'inactive' and kind == 'manual' then
+    return true
+  end
+
+  if status == 'active' and kind == 'profile' and selectedProfileKeyFor(characterName) == profileKey then
+    return true
+  end
+
+  return false
+end
+
 local function firstProfile(character)
   if character.default_profile and character.default_profile ~= '' then
     return character.default_profile
@@ -710,19 +724,33 @@ local function pendingChangeCount()
 end
 
 local function stageManualTarget(characterName)
+  if targetMatchesCurrent(characterName, 'manual') then
+    clearPendingChange(characterName)
+    return false
+  end
+
   pendingChanges[characterConfigKey(characterName)] = {
     character = characterName,
     kind = 'manual',
   }
+
+  return true
 end
 
 local function stageProfileTarget(characterName, profileKey, assist)
+  if targetMatchesCurrent(characterName, 'profile', profileKey) then
+    clearPendingChange(characterName)
+    return false
+  end
+
   pendingChanges[characterConfigKey(characterName)] = {
     character = characterName,
     kind = 'profile',
     profile = profileKey,
     assist = assist,
   }
+
+  return true
 end
 
 local function stageLoadout(loadout)
@@ -732,12 +760,15 @@ local function stageLoadout(loadout)
   end
 
   local entries = loadoutCharacterEntries(loadout)
+  local stagedCount = 0
 
   for _, entry in ipairs(entries) do
-    stageProfileTarget(entry.character, entry.profile, loadout.assist or config.assist)
+    if stageProfileTarget(entry.character, entry.profile, loadout.assist or config.assist) then
+      stagedCount = stagedCount + 1
+    end
   end
 
-  logAction('STAGE', 'Staged ' .. tostring(#entries) .. ' targets from ' .. tostring(loadout.label or loadout.key))
+  logAction('STAGE', 'Staged ' .. tostring(stagedCount) .. ' targets from ' .. tostring(loadout.label or loadout.key))
 end
 
 local function stageUnloadLoadout(loadout)
@@ -746,11 +777,15 @@ local function stageUnloadLoadout(loadout)
     return
   end
 
+  local stagedCount = 0
+
   for _, entry in ipairs(loadoutCharacterEntries(loadout)) do
-    stageManualTarget(entry.character)
+    if stageManualTarget(entry.character) then
+      stagedCount = stagedCount + 1
+    end
   end
 
-  logAction('STAGE', 'Staged manual targets from ' .. tostring(loadout.label or loadout.key))
+  logAction('STAGE', 'Staged ' .. tostring(stagedCount) .. ' manual targets from ' .. tostring(loadout.label or loadout.key))
 end
 
 local function applyPendingChanges()
@@ -889,20 +924,6 @@ local function currentBehaviorFor(characterName)
   end
 
   return 'Manual', selectedProfile
-end
-
-local function targetMatchesCurrent(characterName, kind, profileKey)
-  local status = statusFor(characterName)
-
-  if status == 'inactive' and kind == 'manual' then
-    return true
-  end
-
-  if status == 'active' and kind == 'profile' and selectedProfileKeyFor(characterName) == profileKey then
-    return true
-  end
-
-  return false
 end
 
 local function pendingChangeLabel(characterName)
