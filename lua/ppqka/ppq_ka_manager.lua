@@ -12,6 +12,7 @@ local shouldDraw = true
 local showDebug = false
 local selectedLoadoutKey = nil
 local pendingChanges = {}
+local inFlightChanges = {}
 local dryRunLog = {}
 local commandQueue = {}
 local lastRefresh = 0
@@ -27,6 +28,7 @@ local PAUSED_PROBE_READ_DELAY_SECONDS = 2
 local DEFAULT_END_TO_START_DELAY_MS = 2000
 local DEFAULT_LOADOUT_END_SPACING_MS = 250
 local DEFAULT_LOADOUT_START_SPACING_MS = 750
+local APPLY_CONFIRM_SECONDS = 24
 local discovery = {
   local_name = 'unknown',
   version = 'unknown',
@@ -994,6 +996,72 @@ local function targetMatchesCurrent(characterName, kind, profileKey)
   return false
 end
 
+local function changeTargetLabel(change)
+  if not change then
+    return 'No Change'
+  end
+
+  if change.kind == 'manual' then
+    return 'Manual'
+  end
+
+  if change.kind == 'profile' then
+    return profileForKey(change.character, change.profile).label
+  end
+
+  return 'Unknown'
+end
+
+local function markInFlightChange(change)
+  if not change then
+    return
+  end
+
+  inFlightChanges[characterConfigKey(change.character)] = {
+    character = change.character,
+    kind = change.kind,
+    profile = change.profile,
+    started_at = os.time(),
+  }
+end
+
+local function targetConfirmedByReporter(characterName, kind, profileKey)
+  local status = statusFor(characterName)
+
+  if status == 'inactive' and kind == 'manual' then
+    return true
+  end
+
+  if (status == 'active' or status == 'paused') and kind == 'profile' then
+    local reportedProfile = profileForIni(characterName, (statusCache[characterName] or {}).kiss_ini)
+
+    return reportedProfile and reportedProfile.key == profileKey
+  end
+
+  return false
+end
+
+local function inFlightChangeFor(characterName)
+  local key = characterConfigKey(characterName)
+  local change = inFlightChanges[key]
+
+  if not change then
+    return nil
+  end
+
+  if targetConfirmedByReporter(characterName, change.kind, change.profile) then
+    inFlightChanges[key] = nil
+    return nil
+  end
+
+  if os.time() - change.started_at > APPLY_CONFIRM_SECONDS then
+    inFlightChanges[key] = nil
+    return nil
+  end
+
+  return change
+end
+
 local function firstProfile(character)
   if character.default_profile and character.default_profile ~= '' then
     return character.default_profile
@@ -1192,6 +1260,7 @@ local function stageManualTarget(characterName)
     character = characterName,
     kind = 'manual',
   }
+  inFlightChanges[characterConfigKey(characterName)] = nil
 
   return true
 end
@@ -1208,6 +1277,7 @@ local function stageProfileTarget(characterName, profileKey, assist)
     profile = profileKey,
     assist = assist,
   }
+  inFlightChanges[characterConfigKey(characterName)] = nil
 
   return true
 end
@@ -1275,9 +1345,11 @@ local function applyPendingChanges()
     local endDelayMs = (index - 1) * endSpacingMs
 
     if change.kind == 'manual' then
+      markInFlightChange(change)
       enqueueCommand(string.format('/dex %s /end', change.character), endDelayMs, change.character)
     elseif change.kind == 'profile' then
       config.active_profiles[characterConfigKey(change.character)] = change.profile
+      markInFlightChange(change)
       loadCharacterProfile(
         change.character,
         profileForKey(change.character, change.profile),
@@ -1367,45 +1439,51 @@ local function drawStatusHeader()
 end
 
 local function currentBehaviorFor(characterName)
+  local inFlight = inFlightChangeFor(characterName)
+
+  if inFlight then
+    if inFlight.kind == 'profile' then
+      return '[CHG] -> ' .. changeTargetLabel(inFlight), profileForKey(characterName, inFlight.profile)
+    end
+
+    return '[CHG] -> Manual', {
+      key = nil,
+      label = 'Manual',
+      ini = 'Ending KissAssist',
+    }
+  end
+
   local status = statusFor(characterName)
   local reportedStatus = statusCache[characterName] or {}
   local selectedProfile = profileForIni(characterName, reportedStatus.kiss_ini) or selectedProfileFor(characterName)
 
   if status == 'active' then
-    return selectedProfile.label, selectedProfile
+    return '[RUN] ' .. selectedProfile.label, selectedProfile
   end
 
   if status == 'paused' then
-    return 'Paused: ' .. selectedProfile.label, selectedProfile
+    return '[PAUSE] ' .. selectedProfile.label, selectedProfile
   end
 
   if status == 'checking' then
-    return 'Checking', selectedProfile
+    return '[CHK] Checking', selectedProfile
   end
 
   if status == 'unknown' then
-    return 'Unknown', selectedProfile
+    if reportedStatus.reporter_stale then
+      return '[STALE] Unknown', selectedProfile
+    end
+
+    return '[UNK] Unknown', selectedProfile
   end
 
-  return 'Manual', selectedProfile
+  return '[MAN] Manual', selectedProfile
 end
 
 local function pendingChangeLabel(characterName)
   local change = pendingChangeFor(characterName)
 
-  if not change then
-    return 'No Change'
-  end
-
-  if change.kind == 'manual' then
-    return 'Manual'
-  end
-
-  if change.kind == 'profile' then
-    return profileForKey(characterName, change.profile).label
-  end
-
-  return 'No Change'
+  return changeTargetLabel(change)
 end
 
 local function drawTargetDropdown(characterName)
