@@ -27,6 +27,19 @@ return {
   active_profiles = {
     shadow = 'default',
   },
+  loadouts = {
+    {
+      key = 'g1_normal',
+      label = 'Group 1 - Normal',
+      assist = 'Nandladin',
+      characters = {
+        boomkenzie = 'default',
+        lagspike = 'default',
+        nandarie = 'default',
+        shadow = 'default',
+      },
+    },
+  },
   characters = {},
 }
 ```
@@ -66,6 +79,10 @@ Profile choices by character name. Each profile has a key, display label, and Ki
 `characters`
 
 Optional legacy/configured character definitions. The main status table should not depend on this list.
+
+`loadouts`
+
+Named profile mappings that can be applied with per-character DanNet commands.
 
 `command_templates`
 
@@ -111,6 +128,42 @@ active_profiles = {
 ```
 
 Later, when the UI can launch KissAssist, this active profile should decide which INI is loaded.
+
+## Loadout Fields
+
+Loadouts are explicit character-to-profile mappings:
+
+```lua
+loadouts = {
+  {
+    key = 'g1_normal',
+    label = 'Group 1 - Normal',
+    assist = 'Nandladin',
+    characters = {
+      boomkenzie = 'default',
+      lagspike = 'default',
+      nandarie = 'default',
+      shadow = 'default',
+    },
+  },
+}
+```
+
+`key`
+
+Stable internal loadout identifier.
+
+`label`
+
+UI label shown in the loadout dropdown.
+
+`assist`
+
+Main assist used when loading this loadout.
+
+`characters`
+
+Map of lower-case character names to profile keys. Characters not listed are visible in the status table but are not affected by Load or Unload.
 
 ## Character Fields
 

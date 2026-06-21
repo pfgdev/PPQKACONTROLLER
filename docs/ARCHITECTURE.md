@@ -36,12 +36,13 @@ The MVP will build strings from templates, show those strings in the UI where us
 
 ### Command Dispatcher
 
-The status layer uses `mq.cmdf()` for read-only DanNet `/dquery` probes. Normal status polling queries `Macro.Name`; `Macro.Paused` is available through an isolated debug probe. Profile dropdown changes use a small queued dispatcher to send real `/dex` commands without blocking ImGui rendering.
+The status layer uses `mq.cmdf()` for read-only DanNet `/dquery` probes. Normal status polling queries `Macro.Name`; `Macro.Paused` is available through an isolated debug probe. Profile dropdown changes and loadout actions use a small queued dispatcher to send real per-character `/dex` commands without blocking ImGui rendering.
 
 Current scaffold behavior:
 
 - Read-only DanNet status query dispatch.
 - Per-character active profile dropdown dispatch: end KissAssist, then start KissAssist with the selected INI.
+- Loadout dispatch: per-character end/start for included characters.
 - No group start, group pause, group resume, hard stop, cleanup, movement, attack, or pet command dispatch from the main UI.
 - Debug buttons log dry-run command text only.
 

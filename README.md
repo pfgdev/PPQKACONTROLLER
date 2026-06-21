@@ -13,6 +13,7 @@ This repository is an initial scaffold only.
 - A minimal ImGui script exists at `lua/ppqka/ppq_ka_manager.lua`.
 - The status UI uses read-only DanNet queries.
 - Changing a character's active profile dropdown sends real `/dex` commands to restart KissAssist with the selected INI.
+- Loadout `Load` and `Unload` buttons send real per-character `/dex` commands for included characters.
 - Debug controls may still show dry-run command previews.
 
 ## File Layout
@@ -64,6 +65,7 @@ If MacroQuest does not match by basename, use:
 3. Confirm the `PPQ KissAssist Manager` window opens.
 4. Confirm character status and configured active profiles appear.
 5. Only change a profile dropdown when you are ready for the script to restart KissAssist on that character.
+6. Only press loadout buttons when you are ready for the included characters to start or stop KissAssist.
 
 See `docs/TESTING.md` for the current step-by-step testing workflow.
 

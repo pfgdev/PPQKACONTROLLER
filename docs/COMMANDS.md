@@ -46,6 +46,25 @@ Then, after a short delay:
 
 This restart flow is intentional for now because it is predictable and avoids relying on mid-macro profile swapping.
 
+## Loadout Commands
+
+Loadouts use per-character `/dex` commands, not group-wide KissAssist starts, because each character may use a different profile.
+
+Load sends, for each character in the selected loadout:
+
+```text
+/dex {character} /end
+/dex {character} /mac kissassist ini {profile} assist ma {assist}
+```
+
+Unload sends, for each character in the selected loadout:
+
+```text
+/dex {character} /end
+```
+
+Characters not listed in the loadout are not affected.
+
 ## Character Commands
 
 These control commands are planned for broader buttons later. Some may appear in dry-run/debug previews.

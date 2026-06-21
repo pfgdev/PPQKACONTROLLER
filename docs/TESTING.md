@@ -73,6 +73,8 @@ To test `Macro.Paused`, open debug and press `Probe Macro.Paused only`. That but
 
 Changing a profile dropdown is not read-only. It sends `/dex {character} /end`, then `/dex {character} /mac kissassist ini {profile} assist ma {assist}`.
 
+Loadout buttons are also not read-only. `Load` ends and starts each included character with its configured profile. `Unload` ends each included character. Characters not included in the loadout are not affected.
+
 ## Local Syntax Check
 
 Install LuaJIT:

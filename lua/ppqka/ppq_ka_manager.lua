@@ -8,6 +8,7 @@ local terminate = false
 local isOpen = true
 local shouldDraw = true
 local showDebug = false
+local selectedLoadoutKey = nil
 local dryRunLog = {}
 local commandQueue = {}
 local lastRefresh = 0
@@ -38,6 +39,7 @@ local config = ok and configOrError or {
   groups = {},
   display_groups = {},
   active_profiles = {},
+  loadouts = {},
   characters = {},
   command_templates = {},
   command_sequences = {},
@@ -218,9 +220,7 @@ local function selectedProfileKeyFor(characterName)
   return activeProfiles[characterName] or activeProfiles[characterKey]
 end
 
-local function selectedProfileFor(characterName)
-  local profileKey = selectedProfileKeyFor(characterName)
-
+local function profileForKey(characterName, profileKey)
   if not profileKey then
     return {
       key = nil,
@@ -254,6 +254,65 @@ local function selectedProfileFor(characterName)
     label = tostring(profileKey),
     ini = 'unknown',
   }
+end
+
+local function selectedProfileFor(characterName)
+  return profileForKey(characterName, selectedProfileKeyFor(characterName))
+end
+
+local function loadoutEntries()
+  local entries = {}
+
+  for _, loadout in ipairs(config.loadouts or {}) do
+    table.insert(entries, loadout)
+  end
+
+  table.sort(entries, function(left, right)
+    return (left.label or left.key or '') < (right.label or right.key or '')
+  end)
+
+  return entries
+end
+
+local function selectedLoadout()
+  local entries = loadoutEntries()
+
+  if not selectedLoadoutKey and entries[1] then
+    selectedLoadoutKey = entries[1].key
+  end
+
+  for _, loadout in ipairs(entries) do
+    if loadout.key == selectedLoadoutKey then
+      return loadout
+    end
+  end
+
+  return entries[1]
+end
+
+local function loadoutProfileKeyFor(loadout, characterName)
+  if not loadout or not loadout.characters then
+    return nil
+  end
+
+  return loadout.characters[characterName] or loadout.characters[characterConfigKey(characterName)]
+end
+
+local function loadoutCharacterEntries(loadout)
+  local entries = {}
+
+  for characterName, profileKey in pairs((loadout and loadout.characters) or {}) do
+    table.insert(entries, {
+      character = characterName,
+      profile = profileKey,
+    })
+  end
+
+  table.sort(entries, function(left, right)
+    return left.character < right.character
+  end)
+
+  return entries
 end
 
 local function normalizePeerName(name)
@@ -504,6 +563,107 @@ local function runSelectedProfile(characterName, profile)
   enqueueCommand(startCommand, 1.0)
 end
 
+local function loadCharacterProfile(characterName, profile, assist, delayOffset)
+  if not profile or not profile.ini or profile.ini == '' or profile.ini == 'unknown' then
+    logAction('SKIP', 'No configured INI for ' .. tostring(characterName))
+    return delayOffset
+  end
+
+  enqueueCommand(string.format('/dex %s /end', characterName), delayOffset)
+  enqueueCommand(string.format('/dex %s /mac kissassist ini %s assist ma %s', characterName, profile.ini, assist or config.assist or ''), delayOffset + 1)
+  return delayOffset + 1
+end
+
+local function runLoadout(loadout)
+  if not loadout then
+    logAction('SKIP', 'No loadout selected')
+    return
+  end
+
+  local delayOffset = 0
+  local assist = loadout.assist or config.assist
+
+  for _, entry in ipairs(loadoutCharacterEntries(loadout)) do
+    config.active_profiles[characterConfigKey(entry.character)] = entry.profile
+    delayOffset = loadCharacterProfile(entry.character, profileForKey(entry.character, entry.profile), assist, delayOffset)
+  end
+end
+
+local function unloadLoadout(loadout)
+  if not loadout then
+    logAction('SKIP', 'No loadout selected')
+    return
+  end
+
+  local delayOffset = 0
+
+  for _, entry in ipairs(loadoutCharacterEntries(loadout)) do
+    enqueueCommand(string.format('/dex %s /end', entry.character), delayOffset)
+    delayOffset = delayOffset + 1
+  end
+end
+
+local function loadoutIntentFor(characterName)
+  local loadout = selectedLoadout()
+  local profileKey = loadoutProfileKeyFor(loadout, characterName)
+
+  if not profileKey then
+    return 'not included'
+  end
+
+  local profile = profileForKey(characterName, profileKey)
+  local activeKey = selectedProfileKeyFor(characterName)
+
+  if activeKey == profileKey then
+    return 'load ' .. profile.label
+  end
+
+  return 'change to ' .. profile.label
+end
+
+local function drawLoadoutControls()
+  local entries = loadoutEntries()
+  local loadout = selectedLoadout()
+
+  ImGui.Text('Loadout')
+  ImGui.SameLine(80)
+
+  if #entries == 0 then
+    ImGui.Text('none configured')
+    return
+  end
+
+  ImGui.SetNextItemWidth(180)
+
+  if ImGui.BeginCombo('##loadout_selector', loadout.label or loadout.key or 'unknown') then
+    for _, entry in ipairs(entries) do
+      local isSelected = entry.key == (loadout and loadout.key)
+
+      if ImGui.Selectable(entry.label or entry.key, isSelected) then
+        selectedLoadoutKey = entry.key
+      end
+
+      if isSelected then
+        ImGui.SetItemDefaultFocus()
+      end
+    end
+
+    ImGui.EndCombo()
+  end
+
+  ImGui.SameLine()
+
+  if ImGui.Button('Load') then
+    runLoadout(selectedLoadout())
+  end
+
+  ImGui.SameLine()
+
+  if ImGui.Button('Unload') then
+    unloadLoadout(selectedLoadout())
+  end
+end
+
 local function drawStatusHeader()
   ImGui.Text('Character')
   ImGui.SameLine(150)
@@ -512,6 +672,8 @@ local function drawStatusHeader()
   ImGui.Text('Active profile')
   ImGui.SameLine(380)
   ImGui.Text('Config file')
+  ImGui.SameLine(620)
+  ImGui.Text('Loadout')
 end
 
 local function drawProfileDropdown(characterName)
@@ -559,10 +721,13 @@ local function drawStatusRow(characterName)
   local selectedProfile = drawProfileDropdown(characterName)
   ImGui.SameLine(380)
   ImGui.Text(selectedProfile.ini)
+  ImGui.SameLine(620)
+  ImGui.Text(loadoutIntentFor(characterName))
 end
 
 local function drawStatusOverview()
   ImGui.Text(config.name or 'PPQ KissAssist Manager')
+  drawLoadoutControls()
   ImGui.Text('Status overview')
   ImGui.Separator()
 

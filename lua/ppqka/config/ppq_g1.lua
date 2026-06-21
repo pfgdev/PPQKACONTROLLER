@@ -116,5 +116,19 @@ return {
     shadow = 'default',
   },
 
+  loadouts = {
+    {
+      key = 'g1_normal',
+      label = 'Group 1 - Normal',
+      assist = 'Nandladin',
+      characters = {
+        boomkenzie = 'default',
+        lagspike = 'default',
+        nandarie = 'default',
+        shadow = 'default',
+      },
+    },
+  },
+
   characters = {},
 }
