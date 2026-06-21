@@ -18,6 +18,7 @@ local lastRefresh = 0
 local lastStatusQuery = 0
 local STATUS_QUERY_SECONDS = 8
 local STATUS_READ_DELAY_SECONDS = 2
+local REPORTER_STALE_SECONDS = 20
 local GROUP_UNGROUP_CONFIRM_READS = 3
 local STATUS_QUERIES = {
   REPORTER_VARIABLE,
@@ -299,6 +300,31 @@ local function parseReporterPayload(payload)
   return report
 end
 
+local function isReporterFresh(report)
+  local timestamp = tonumber(report and report.ts)
+
+  if not timestamp then
+    return false
+  end
+
+  local age = os.time() - timestamp
+  return age >= -5 and age <= REPORTER_STALE_SECONDS
+end
+
+local function clearReporterStatus(status, age)
+  status.reporter_seen = false
+  status.reporter_stale = true
+  status.reporter_age = age
+  status.macro_name = ''
+  status.macro_paused = nil
+  status.kiss_ini = nil
+  status.group_members = '0'
+  status.group_leader = nil
+  status.group_main_assist = nil
+  status.group_roster = {}
+  status.query_ok = false
+end
+
 local function rosterFromReporter(report)
   local roster = {}
 
@@ -539,11 +565,27 @@ local function applyReporterPayload(status, payload)
   local report = parseReporterPayload(payload)
 
   if not report then
+    clearReporterStatus(status, nil)
+    return false
+  end
+
+  local reporterTimestamp = tonumber(report.ts)
+
+  if not isReporterFresh(report) then
+    status.reporter_raw = tostring(payload or '')
+    status.reporter_ts = reporterTimestamp
+    local reporterAge = reporterTimestamp and (os.time() - reporterTimestamp) or nil
+    status.reporter_age = reporterAge
+    status.reporter_read_at = os.time()
+    clearReporterStatus(status, reporterAge)
     return false
   end
 
   status.reporter_seen = true
+  status.reporter_stale = false
   status.reporter_raw = tostring(payload or '')
+  status.reporter_ts = reporterTimestamp
+  status.reporter_age = 0
   status.reporter_read_at = os.time()
   status.macro_name = cleanReportedText(report.macro) or ''
   status.macro_paused = cleanReportedText(report.paused)
@@ -1622,6 +1664,10 @@ local function drawDanNetDiscovery()
     ImGui.Text('Probe read: ' .. formatTimestamp(probe.read_at))
     ImGui.SameLine(420)
     ImGui.Text('Reporter: ' .. (status.reporter_seen and ('seen ' .. formatTimestamp(status.reporter_read_at)) or 'not seen'))
+    if status.reporter_stale then
+      ImGui.Text('Reporter stale: ' .. tostring(status.reporter_age or 'unknown') .. 's old')
+    end
+
     ImGui.Text('Group.Members: ' .. tostring(status.group_members or 'unknown'))
     ImGui.SameLine(180)
     ImGui.Text('Leader: ' .. tostring(status.group_leader or 'unknown'))
