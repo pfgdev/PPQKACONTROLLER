@@ -15,10 +15,17 @@ local pendingChanges = {}
 local inFlightChanges = {}
 local dryRunLog = {}
 local commandQueue = {}
+local rapidStatus = {
+  until_time = 0,
+  next_time = 0,
+  targets = {},
+}
 local lastRefresh = 0
 local lastStatusQuery = 0
 local STATUS_QUERY_SECONDS = 4
 local STATUS_READ_DELAY_SECONDS = 1
+local RAPID_STATUS_QUERY_SECONDS = 2
+local RAPID_STATUS_WINDOW_SECONDS = 30
 local REPORTER_STALE_SECONDS = 30
 local GROUP_UNGROUP_CONFIRM_READS = 3
 local STATUS_QUERIES = {
@@ -683,6 +690,11 @@ local function submitPeerStatusQueries(peer)
   end
 
   local cached = statusCache[peer] or {}
+
+  if cached.query_pending and cached.read_after and os.time() < cached.read_after then
+    return
+  end
+
   cached.requested_at = os.time()
   cached.read_after = cached.requested_at + STATUS_READ_DELAY_SECONDS
   cached.query_pending = true
@@ -702,6 +714,12 @@ end
 
 local function refreshPeerStatusQueries()
   for _, peer in ipairs(allDisplayPeers()) do
+    submitPeerStatusQueries(peer)
+  end
+end
+
+local function refreshTargetStatusQueries(targets)
+  for _, peer in pairs(targets or {}) do
     submitPeerStatusQueries(peer)
   end
 end
@@ -1251,6 +1269,48 @@ local function clearQueuedCommandsForTargets(targets)
   end
 end
 
+local function beginRapidStatusRefresh(entries, delaySeconds)
+  local now = os.time()
+
+  rapidStatus.until_time = now + RAPID_STATUS_WINDOW_SECONDS
+  rapidStatus.next_time = now + (delaySeconds or 1)
+
+  for _, change in ipairs(entries or {}) do
+    rapidStatus.targets[characterConfigKey(change.character)] = change.character
+  end
+end
+
+local function processRapidStatusRefresh(now)
+  if now > rapidStatus.until_time then
+    rapidStatus.targets = {}
+    return false
+  end
+
+  local hasTargets = false
+
+  for key in pairs(rapidStatus.targets) do
+    if inFlightChanges[key] then
+      hasTargets = true
+    else
+      rapidStatus.targets[key] = nil
+    end
+  end
+
+  if not hasTargets then
+    rapidStatus.targets = {}
+    rapidStatus.until_time = 0
+    return false
+  end
+
+  if now < rapidStatus.next_time then
+    return false
+  end
+
+  refreshTargetStatusQueries(rapidStatus.targets)
+  rapidStatus.next_time = now + RAPID_STATUS_QUERY_SECONDS
+  return true
+end
+
 local function loadCharacterProfile(characterName, profile, assist, endDelayMs, startDelayMs)
   if not profile or not profile.ini or profile.ini == '' or profile.ini == 'unknown' then
     logAction('SKIP', 'No configured INI for ' .. tostring(characterName))
@@ -1394,6 +1454,7 @@ local function applyPendingChanges()
   end
 
   logAction('APPLY', 'Applied ' .. tostring(#entries) .. ' pending changes')
+  beginRapidStatusRefresh(entries, 1)
   clearPendingChanges()
 end
 
@@ -1909,7 +1970,9 @@ while not terminate do
     lastRefresh = now
   end
 
-  if now - lastStatusQuery >= STATUS_QUERY_SECONDS and now >= pausedProbe.quiet_until then
+  if processRapidStatusRefresh(now) then
+    lastStatusQuery = now
+  elseif now - lastStatusQuery >= STATUS_QUERY_SECONDS and now >= pausedProbe.quiet_until then
     refreshPeerStatusQueries()
     lastStatusQuery = now
   end
