@@ -1744,7 +1744,7 @@ end
 local function drawLoadoutControls()
   local entries = loadoutEntries()
   local loadout = selectedLoadout()
-  local loadoutPreview = targetLoadoutModified and 'Modified Target' or (loadout.label or loadout.key or 'unknown')
+  local loadoutPreview = targetLoadoutModified and 'Modified / Unsaved' or (loadout.label or loadout.key or 'unknown')
   local changeCount = pendingChangeCount()
 
   ImGui.Text('Current Loadout')
@@ -1998,6 +1998,7 @@ local function drawStatusRow(characterName)
     ImGui.SetCursorPosX(ImGui.GetCursorPosX() + offset)
     if ImGui.Button('X##clear_target_' .. characterName, ImVec2(STATUS_TABLE_UNDO_BUTTON_WIDTH, 0)) then
       clearPendingChange(characterName)
+      markTargetModified()
     end
   else
     ImGui.Text('')
