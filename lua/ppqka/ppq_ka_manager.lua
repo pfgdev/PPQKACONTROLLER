@@ -1452,8 +1452,8 @@ local function pendingChangeCount()
   return count
 end
 
-local function stageManualTarget(characterName, force)
-  if not force and targetMatchesCurrent(characterName, 'manual') then
+local function stageManualTarget(characterName)
+  if targetMatchesCurrent(characterName, 'manual') then
     clearPendingChange(characterName)
     return false
   end
@@ -1467,8 +1467,8 @@ local function stageManualTarget(characterName, force)
   return true
 end
 
-local function stageProfileTarget(characterName, profileKey, assist, force)
-  if not force and targetMatchesCurrent(characterName, 'profile', profileKey) then
+local function stageProfileTarget(characterName, profileKey, assist)
+  if targetMatchesCurrent(characterName, 'profile', profileKey) then
     clearPendingChange(characterName)
     return false
   end
@@ -1505,7 +1505,7 @@ local function stageLoadout(loadout)
   local stagedCount = 0
 
   for _, entry in ipairs(entries) do
-    if stageProfileTarget(entry.character, entry.profile, loadout.assist or config.assist, true) then
+    if stageProfileTarget(entry.character, entry.profile, loadout.assist or config.assist) then
       stagedCount = stagedCount + 1
     end
   end
@@ -1527,7 +1527,7 @@ stageUnloadLoadout = function(loadout)
   end
 
   for _, entry in ipairs(entries) do
-    if entry.character and stageManualTarget(entry.character, true) then
+    if entry.character and stageManualTarget(entry.character) then
       stagedCount = stagedCount + 1
     end
   end
@@ -1537,14 +1537,20 @@ stageUnloadLoadout = function(loadout)
 end
 
 local function selectTargetLoadout(loadout)
-  selectedLoadoutKey = (loadout and loadout.key) or LOADOUT_NONE_KEY
+  local targetKey = (loadout and loadout.key) or LOADOUT_NONE_KEY
+  local targetLabel = (loadout and (loadout.label or loadout.key)) or 'No Target Selected'
+  local stagedCount = 0
+
+  selectedLoadoutKey = targetKey
   clearPendingChanges()
 
-  if not loadout or loadout.kind == 'none' then
-    return 0
+  if loadout and loadout.kind ~= 'none' then
+    stagedCount = stageLoadout(loadout)
   end
 
-  return stageLoadout(loadout)
+  selectedLoadoutKey = targetKey
+  logAction('TARGET', 'Selected ' .. tostring(targetLabel) .. ' with ' .. tostring(stagedCount) .. ' pending changes')
+  return stagedCount
 end
 
 local function applyPendingChanges()
@@ -1745,14 +1751,9 @@ local function drawLoadoutControls()
   if ImGui.BeginCombo('##loadout_selector', loadout.label or loadout.key or 'unknown') then
     for _, entry in ipairs(entries) do
       local isSelected = entry.key == (loadout and loadout.key)
-      local optionLabel = tostring(entry.label or entry.key or 'unknown') .. '##loadout_option_' .. tostring(entry.key)
 
-      if ImGui.Selectable(optionLabel, isSelected) then
+      if ImGui.Selectable(tostring(entry.label or entry.key or 'unknown'), isSelected) then
         selectTargetLoadout(entry)
-      end
-
-      if isSelected then
-        ImGui.SetItemDefaultFocus()
       end
     end
 
