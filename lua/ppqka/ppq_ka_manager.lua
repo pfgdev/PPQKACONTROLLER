@@ -22,6 +22,12 @@ local STATUS_QUERIES = {
   'Group.Members',
   'Group.Leader.Name',
   'Group.MainAssist.Name',
+  'Group.Member[0].Name',
+  'Group.Member[1].Name',
+  'Group.Member[2].Name',
+  'Group.Member[3].Name',
+  'Group.Member[4].Name',
+  'Group.Member[5].Name',
 }
 local PAUSED_PROBE_READ_DELAY_SECONDS = 2
 local DEFAULT_END_TO_START_DELAY_MS = 2000
@@ -223,6 +229,16 @@ local function formatList(items)
   return table.concat(items, ', ')
 end
 
+local function formatRoster(roster)
+  local names = {}
+
+  for key, name in pairs(roster or {}) do
+    table.insert(names, type(name) == 'string' and name or key)
+  end
+
+  return formatList(names)
+end
+
 local function timingValue(key, fallback)
   local timing = config.command_timing or {}
   return tonumber(timing[key]) or fallback
@@ -360,20 +376,47 @@ local function isLocalPeer(characterName)
   return normalizePeerName(characterName) == normalizePeerName(discovery.local_name)
 end
 
+local function groupMemberQuery(index)
+  return 'Group.Member[' .. tostring(index) .. '].Name'
+end
+
+local function readLocalGroupRoster(memberCount)
+  local roster = {}
+
+  if (tonumber(memberCount) or 0) <= 0 then
+    return roster
+  end
+
+  for index = 0, 5 do
+    local memberName = cleanTloName(safeTlo(groupMemberQuery(index), function()
+      return mq.TLO.Group.Member(index).Name()
+    end, nil))
+
+    if memberName then
+      roster[normalizePeerName(memberName)] = memberName
+    end
+  end
+
+  return roster
+end
+
 local function readLocalMacroStatus()
+  local groupMembers = safeTlo('Group.Members', function()
+    return mq.TLO.Group.Members()
+  end, 0)
+
   return {
     macro_name = safeTlo('Macro.Name', function()
       return mq.TLO.Macro.Name()
     end, ''),
-    group_members = safeTlo('Group.Members', function()
-      return mq.TLO.Group.Members()
-    end, 0),
+    group_members = groupMembers,
     group_leader = safeTlo('Group.Leader.Name', function()
       return mq.TLO.Group.Leader.Name()
     end, ''),
     group_main_assist = safeTlo('Group.MainAssist.Name', function()
       return mq.TLO.Group.MainAssist.Name()
     end, ''),
+    group_roster = readLocalGroupRoster(groupMembers),
     query_ok = true,
   }
 end
@@ -392,6 +435,7 @@ local function submitPeerStatusQueries(peer)
     cached.group_members = localStatus.group_members
     cached.group_leader = localStatus.group_leader
     cached.group_main_assist = localStatus.group_main_assist
+    cached.group_roster = localStatus.group_roster
     cached.query_ok = localStatus.query_ok
     cached.query_pending = false
     cached.requested_at = os.time()
@@ -434,6 +478,7 @@ local function updatePeerStatusFromQueries(peer)
     cached.group_members = localStatus.group_members
     cached.group_leader = localStatus.group_leader
     cached.group_main_assist = localStatus.group_main_assist
+    cached.group_roster = localStatus.group_roster
     cached.query_ok = localStatus.query_ok
     cached.query_pending = false
     cached.requested_at = os.time()
@@ -459,6 +504,8 @@ local function updatePeerStatusFromQueries(peer)
   local groupMembers = readPeerQuery(peer, 'Group.Members')
   local groupLeader = readPeerQuery(peer, 'Group.Leader.Name')
   local groupMainAssist = readPeerQuery(peer, 'Group.MainAssist.Name')
+  local groupRoster = {}
+  local hasRosterRead = false
 
   if macroName ~= nil then
     status.macro_name = tostring(macroName)
@@ -479,6 +526,25 @@ local function updatePeerStatusFromQueries(peer)
 
   if groupMainAssist ~= nil then
     status.group_main_assist = tostring(groupMainAssist)
+    status.read_at = os.time()
+    status.group_read_at = os.time()
+  end
+
+  for index = 0, 5 do
+    local memberName = readPeerQuery(peer, groupMemberQuery(index))
+
+    if memberName ~= nil then
+      hasRosterRead = true
+      local cleanName = cleanTloName(memberName)
+
+      if cleanName then
+        groupRoster[normalizePeerName(cleanName)] = cleanName
+      end
+    end
+  end
+
+  if hasRosterRead then
+    status.group_roster = groupRoster
     status.read_at = os.time()
     status.group_read_at = os.time()
   end
@@ -572,13 +638,19 @@ local function rawPeerGroupInfo(status)
   local memberCount = tonumber(status.group_members) or 0
   local leader = cleanTloName(status.group_leader)
   local mainAssist = cleanTloName(status.group_main_assist)
+  local roster = status.group_roster or {}
 
   if memberCount > 0 and leader then
+    if roster[normalizePeerName(leader)] == nil then
+      roster[normalizePeerName(leader)] = leader
+    end
+
     return {
       key = 'group:' .. normalizePeerName(leader),
       label = leader .. "'s Group",
       leader = leader,
       main_assist = mainAssist,
+      members = roster,
       grouped = true,
     }
   end
@@ -625,6 +697,9 @@ end
 local function actualGroupViews()
   local grouped = {}
   local localGroup = localGroupSnapshot()
+  local allPeers = allKnownPeers()
+  local knownPeers = {}
+  local assignedPeers = {}
   local ungrouped = {
     key = 'ungrouped',
     label = 'Ungrouped',
@@ -634,7 +709,11 @@ local function actualGroupViews()
   }
   local localGroupKey = nil
 
-  for _, peer in ipairs(allKnownPeers()) do
+  for _, peer in ipairs(allPeers) do
+    knownPeers[normalizePeerName(peer)] = peer
+  end
+
+  for _, peer in ipairs(allPeers) do
     local peerKey = normalizePeerName(peer)
     local info = localGroup and localGroup.members[peerKey] and localGroup or stablePeerGroupInfo(peer)
 
@@ -656,12 +735,35 @@ local function actualGroupViews()
         group.main_assist = info.main_assist
       end
 
-      table.insert(group.peers, peer)
+      local addedRosterMember = false
+
+      for memberKey, memberName in pairs(info.members or {}) do
+        local displayName = knownPeers[memberKey]
+
+        if not displayName and type(memberName) == 'string' then
+          displayName = memberName
+        end
+
+        if displayName and not assignedPeers[normalizePeerName(displayName)] then
+          assignedPeers[normalizePeerName(displayName)] = true
+          table.insert(group.peers, displayName)
+          addedRosterMember = true
+        end
+      end
+
+      if not addedRosterMember and not assignedPeers[peerKey] then
+        assignedPeers[peerKey] = true
+        table.insert(group.peers, peer)
+      end
 
       if isLocalPeer(peer) or (localGroup and info.key == localGroup.key) then
         localGroupKey = info.key
       end
-    else
+    end
+  end
+
+  for _, peer in ipairs(allPeers) do
+    if not assignedPeers[normalizePeerName(peer)] then
       table.insert(ungrouped.peers, peer)
     end
   end
@@ -1382,6 +1484,7 @@ local function drawDanNetDiscovery()
     ImGui.Text('MA: ' .. tostring(status.group_main_assist or 'unknown'))
     ImGui.SameLine(500)
     ImGui.Text('Ungroup reads: ' .. tostring(groupState.ungrouped_reads or 0))
+    ImGui.TextWrapped('Roster: ' .. formatRoster(status.group_roster))
 
     if probe.error then
       ImGui.TextWrapped('Paused probe error: ' .. probe.error)
