@@ -11,6 +11,7 @@ local isOpen = true
 local shouldDraw = true
 local showDebug = false
 local selectedLoadoutKey = nil
+local LOADOUT_UNLOAD_KEY = '__unload_all__'
 local pendingChanges = {}
 local inFlightChanges = {}
 local dryRunLog = {}
@@ -475,6 +476,12 @@ local function loadoutEntries()
   table.sort(entries, function(left, right)
     return (left.label or left.key or '') < (right.label or right.key or '')
   end)
+
+  table.insert(entries, {
+    key = LOADOUT_UNLOAD_KEY,
+    label = 'Unload All',
+    kind = 'unload',
+  })
 
   return entries
 end
@@ -1451,9 +1458,16 @@ local function stageProfileTarget(characterName, profileKey, assist)
   return true
 end
 
+local stageUnloadLoadout
+
 local function stageLoadout(loadout)
   if not loadout then
     logAction('SKIP', 'No loadout selected')
+    return
+  end
+
+  if loadout.kind == 'unload' then
+    stageUnloadLoadout(loadout)
     return
   end
 
@@ -1469,21 +1483,25 @@ local function stageLoadout(loadout)
   logAction('STAGE', 'Staged ' .. tostring(stagedCount) .. ' targets from ' .. tostring(loadout.label or loadout.key))
 end
 
-local function stageUnloadLoadout(loadout)
-  if not loadout then
-    logAction('SKIP', 'No loadout selected')
-    return
+stageUnloadLoadout = function(loadout)
+  local stagedCount = 0
+  local entries = loadoutCharacterEntries(loadout)
+
+  if #entries == 0 then
+    for _, peer in ipairs(allDisplayPeers()) do
+      table.insert(entries, {
+        character = peer,
+      })
+    end
   end
 
-  local stagedCount = 0
-
-  for _, entry in ipairs(loadoutCharacterEntries(loadout)) do
-    if stageManualTarget(entry.character) then
+  for _, entry in ipairs(entries) do
+    if entry.character and stageManualTarget(entry.character) then
       stagedCount = stagedCount + 1
     end
   end
 
-  logAction('STAGE', 'Staged ' .. tostring(stagedCount) .. ' manual targets from ' .. tostring(loadout.label or loadout.key))
+  logAction('STAGE', 'Staged ' .. tostring(stagedCount) .. ' manual targets from ' .. tostring((loadout and loadout.label) or 'Unload All'))
 end
 
 local function applyPendingChanges()
@@ -1555,7 +1573,7 @@ local function drawLoadoutControls()
     return
   end
 
-  ImGui.SetNextItemWidth(190)
+  ImGui.SetNextItemWidth(220)
 
   if ImGui.BeginCombo('##loadout_selector', loadout.label or loadout.key or 'unknown') then
     for _, entry in ipairs(entries) do
@@ -1563,6 +1581,8 @@ local function drawLoadoutControls()
 
       if ImGui.Selectable(entry.label or entry.key, isSelected) then
         selectedLoadoutKey = entry.key
+        clearPendingChanges()
+        stageLoadout(entry)
       end
 
       if isSelected then
@@ -1575,17 +1595,11 @@ local function drawLoadoutControls()
 
   ImGui.SameLine()
 
-  if ImGui.Button('Stage Loadout') then
-    stageLoadout(selectedLoadout())
+  if ImGui.Button('Manage Loadouts') then
+    logAction('TODO', 'Manage Loadouts is not implemented yet')
   end
 
-  ImGui.SameLine()
-
-  if ImGui.Button('Stage Unload') then
-    stageUnloadLoadout(selectedLoadout())
-  end
-
-  ImGui.SameLine(520)
+  ImGui.SameLine(560)
   ImGui.Text(changeCountText(changeCount) .. ' pending')
   ImGui.SameLine()
 
