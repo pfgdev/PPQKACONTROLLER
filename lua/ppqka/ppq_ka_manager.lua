@@ -1732,7 +1732,13 @@ end
 local function displayCharacterName(characterName)
   local text = tostring(characterName or '')
 
-  return text:gsub('^%l', string.upper)
+  text = text:gsub('^%l', string.upper)
+
+  if isLocalPeer(characterName) then
+    return text .. ' (you)'
+  end
+
+  return text
 end
 
 local STATUS_TABLE_CHARACTER_WIDTH = 175.0
@@ -1777,7 +1783,9 @@ local function drawStatusRow(characterName)
 
   ImGui.TableNextColumn()
   if pending then
-    ImGui.SetCursorPosX(ImGui.GetCursorPosX() + ((STATUS_TABLE_UNDO_WIDTH - STATUS_TABLE_UNDO_BUTTON_WIDTH) * 0.5))
+    local columnWidth = ImGui.GetColumnWidth()
+    local offset = math.max(0, (columnWidth - STATUS_TABLE_UNDO_BUTTON_WIDTH) * 0.5)
+    ImGui.SetCursorPosX(ImGui.GetCursorPosX() + offset)
     if ImGui.Button('X##clear_target_' .. characterName, ImVec2(STATUS_TABLE_UNDO_BUTTON_WIDTH, 0)) then
       clearPendingChange(characterName)
     end
