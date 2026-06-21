@@ -1600,14 +1600,6 @@ local function drawLoadoutControls()
   end
 end
 
-local function drawStatusHeader()
-  ImGui.Text('Character')
-  ImGui.SameLine(180)
-  ImGui.Text('Current behavior')
-  ImGui.SameLine(380)
-  ImGui.Text('Target behavior')
-end
-
 local function behaviorTextColor(state)
   if state == 'run' then
     return 0.45, 1.0, 0.55, 1.0
@@ -1740,24 +1732,53 @@ end
 local function drawStatusRow(characterName)
   local pending = pendingChangeFor(characterName)
   local currentBehavior, currentProfile, currentState = currentBehaviorFor(characterName)
-  local displayName = pending and ('* ' .. characterName) or characterName
+  local displayName = pending and ('> ' .. characterName) or characterName
 
-  ImGui.Text(displayName)
-  ImGui.SameLine(180)
+  ImGui.TableNextRow()
+  ImGui.TableNextColumn()
+
+  if pending then
+    drawBehaviorText(displayName, 'change')
+  else
+    ImGui.Text(displayName)
+  end
+
+  ImGui.TableNextColumn()
   drawBehaviorText(currentBehavior, currentState)
 
   if ImGui.IsItemHovered() then
     ImGui.SetTooltip(currentProfile.ini)
   end
 
-  ImGui.SameLine(380)
+  ImGui.TableNextColumn()
   drawTargetDropdown(characterName)
 
+  ImGui.TableNextColumn()
   if pending then
-    ImGui.SameLine(620)
     if ImGui.Button('X##clear_target_' .. characterName) then
       clearPendingChange(characterName)
     end
+  else
+    ImGui.Text('')
+  end
+end
+
+local function drawStatusTable(group, peers)
+  local tableId = 'status_table_' .. tostring(group.key or group.label or group.peers or 'group')
+  local flags = bit32.bor(ImGuiTableFlags.Borders, ImGuiTableFlags.RowBg, ImGuiTableFlags.Resizable)
+
+  if ImGui.BeginTable(tableId, 4, flags) then
+    ImGui.TableSetupColumn('Character', ImGuiTableColumnFlags.WidthFixed, 170.0)
+    ImGui.TableSetupColumn('Current behavior', ImGuiTableColumnFlags.WidthFixed, 200.0)
+    ImGui.TableSetupColumn('Target behavior', ImGuiTableColumnFlags.WidthFixed, 250.0)
+    ImGui.TableSetupColumn('', ImGuiTableColumnFlags.WidthFixed, 34.0)
+    ImGui.TableHeadersRow()
+
+    for _, peer in ipairs(peers) do
+      drawStatusRow(peer)
+    end
+
+    ImGui.EndTable()
   end
 end
 
@@ -1781,14 +1802,11 @@ local function drawStatusOverview()
       ImGui.SameLine(260)
       ImGui.Text('Control: ' .. group.control)
     end
-    drawStatusHeader()
 
     if #peers == 0 then
       ImGui.Text('(no peers reported)')
     else
-      for _, peer in ipairs(peers) do
-        drawStatusRow(peer)
-      end
+      drawStatusTable(group, peers)
     end
 
     ImGui.Separator()
