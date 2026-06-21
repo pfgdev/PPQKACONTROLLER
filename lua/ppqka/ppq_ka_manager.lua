@@ -1538,7 +1538,6 @@ end
 
 local function selectTargetLoadout(loadout)
   local targetKey = (loadout and loadout.key) or LOADOUT_NONE_KEY
-  local targetLabel = (loadout and (loadout.label or loadout.key)) or 'No Target Selected'
   local stagedCount = 0
 
   selectedLoadoutKey = targetKey
@@ -1549,7 +1548,6 @@ local function selectTargetLoadout(loadout)
   end
 
   selectedLoadoutKey = targetKey
-  logAction('TARGET', 'Selected ' .. tostring(targetLabel) .. ' with ' .. tostring(stagedCount) .. ' pending changes')
   return stagedCount
 end
 
@@ -1751,8 +1749,9 @@ local function drawLoadoutControls()
   if ImGui.BeginCombo('##loadout_selector', loadout.label or loadout.key or 'unknown') then
     for _, entry in ipairs(entries) do
       local isSelected = entry.key == (loadout and loadout.key)
+      local _, clicked = ImGui.Selectable(tostring(entry.label or entry.key or 'unknown'), isSelected)
 
-      if ImGui.Selectable(tostring(entry.label or entry.key or 'unknown'), isSelected) then
+      if clicked then
         selectTargetLoadout(entry)
       end
     end
@@ -1861,7 +1860,9 @@ local function drawTargetDropdown(characterName)
   ImGui.SetNextItemWidth(-1)
 
   if ImGui.BeginCombo('##target_' .. characterName, pendingChangeLabel(characterName)) then
-    if ImGui.Selectable('No Change', pending == nil) then
+    local _, noChangeClicked = ImGui.Selectable('No Change', pending == nil)
+
+    if noChangeClicked then
       clearPendingChange(characterName)
     end
 
@@ -1870,7 +1871,9 @@ local function drawTargetDropdown(characterName)
     end
 
     local manualSelected = pending and pending.kind == 'manual'
-    if ImGui.Selectable('Manual', manualSelected) then
+    local _, manualClicked = ImGui.Selectable('Manual', manualSelected)
+
+    if manualClicked then
       if targetMatchesCurrent(characterName, 'manual') then
         clearPendingChange(characterName)
       else
@@ -1882,14 +1885,19 @@ local function drawTargetDropdown(characterName)
       ImGui.SetItemDefaultFocus()
     end
 
-    if #entries > 0 and ImGui.Selectable('-----##target_separator_' .. characterName, false) then
-      clearPendingChange(characterName)
+    if #entries > 0 then
+      local _, separatorClicked = ImGui.Selectable('-----##target_separator_' .. characterName, false)
+
+      if separatorClicked then
+        clearPendingChange(characterName)
+      end
     end
 
     for _, entry in ipairs(entries) do
       local isSelected = pending and pending.kind == 'profile' and pending.profile == entry.key
+      local _, profileClicked = ImGui.Selectable(entry.label, isSelected)
 
-      if ImGui.Selectable(entry.label, isSelected) then
+      if profileClicked then
         if targetMatchesCurrent(characterName, 'profile', entry.key) then
           clearPendingChange(characterName)
         else
