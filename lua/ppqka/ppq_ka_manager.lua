@@ -17,8 +17,8 @@ local dryRunLog = {}
 local commandQueue = {}
 local lastRefresh = 0
 local lastStatusQuery = 0
-local STATUS_QUERY_SECONDS = 8
-local STATUS_READ_DELAY_SECONDS = 2
+local STATUS_QUERY_SECONDS = 4
+local STATUS_READ_DELAY_SECONDS = 1
 local REPORTER_STALE_SECONDS = 30
 local GROUP_UNGROUP_CONFIRM_READS = 3
 local STATUS_QUERIES = {
@@ -328,6 +328,13 @@ local function clearReporterStatus(status, age)
   status.query_ok = false
 end
 
+local function markReporterStale(status, age)
+  status.reporter_stale = true
+  status.reporter_age = age
+  status.reporter_read_at = os.time()
+  status.query_ok = status.read_at ~= nil
+end
+
 local function rosterFromReporter(report)
   local roster = {}
 
@@ -568,6 +575,11 @@ local function applyReporterPayload(status, payload)
   local report = parseReporterPayload(payload)
 
   if not report then
+    if status.read_at then
+      markReporterStale(status, nil)
+      return true
+    end
+
     clearReporterStatus(status, nil)
     return false
   end
@@ -575,21 +587,30 @@ local function applyReporterPayload(status, payload)
   local reporterTimestamp = tonumber(report.ts)
 
   if reporterTimestamp and status.reporter_ts and reporterTimestamp < status.reporter_ts then
-    local cachedAge = os.time() - status.reporter_ts
+    local currentAge = os.time() - status.reporter_ts
 
-    if cachedAge <= REPORTER_STALE_SECONDS then
-      status.reporter_ignored_old = true
-      status.reporter_ignored_old_age = os.time() - reporterTimestamp
-      return true
+    status.reporter_ignored_old = true
+    status.reporter_ignored_old_age = os.time() - reporterTimestamp
+
+    if currentAge > REPORTER_STALE_SECONDS then
+      markReporterStale(status, currentAge)
     end
+
+    return status.read_at ~= nil
   end
 
   if not isReporterFresh(report) then
+    local reporterAge = reporterTimestamp and (os.time() - reporterTimestamp) or nil
+
+    if status.read_at then
+      status.reporter_stale_raw = tostring(payload or '')
+      status.reporter_stale_ts = reporterTimestamp
+      markReporterStale(status, reporterAge)
+      return true
+    end
+
     status.reporter_raw = tostring(payload or '')
     status.reporter_ts = reporterTimestamp
-    local reporterAge = reporterTimestamp and (os.time() - reporterTimestamp) or nil
-    status.reporter_age = reporterAge
-    status.reporter_read_at = os.time()
     clearReporterStatus(status, reporterAge)
     return false
   end
