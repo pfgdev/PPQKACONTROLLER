@@ -7,6 +7,7 @@ local CONFIG_MODULE = 'ppqka.config.ppq_g1'
 local terminate = false
 local isOpen = true
 local shouldDraw = true
+local showDebug = false
 local dryRunLog = {}
 local lastRefresh = 0
 local discovery = {
@@ -23,6 +24,8 @@ local config = ok and configOrError or {
   name = 'Config failed to load',
   assist = '',
   groups = {},
+  display_groups = {},
+  active_profiles = {},
   characters = {},
   command_templates = {},
   command_sequences = {},
@@ -72,6 +75,38 @@ local function sortedGroupEntries(groups)
   return entries
 end
 
+local function displayGroups()
+  if config.display_groups and #config.display_groups > 0 then
+    return config.display_groups
+  end
+
+  local groups = config.groups or {}
+  return {
+    {
+      label = 'Group 1',
+      peers = groups.all or 'g1',
+      control = groups.kiss or 'g1kiss',
+    },
+    {
+      label = 'Group 2',
+      peers = groups.group2 or 'g2',
+      control = groups.group2kiss or 'g2kiss',
+    },
+  }
+end
+
+local function peersForGroup(groupName)
+  for _, group in pairs(discovery.groups or {}) do
+    if group.name == groupName then
+      return group.peers or {}
+    end
+  end
+
+  return splitPipeList(safeTlo('DanNet.Peers[' .. tostring(groupName) .. ']', function()
+    return mq.TLO.DanNet.Peers(groupName)()
+  end, ''))
+end
+
 local function refreshDanNetDiscovery()
   discovery.local_name = safeTlo('DanNet.Name', function()
     return mq.TLO.DanNet.Name()
@@ -111,6 +146,19 @@ local function formatList(items)
   end
 
   return table.concat(items, ', ')
+end
+
+local function savedProfileFor(characterName)
+  local profiles = config.active_profiles or {}
+  return profiles[characterName] or profiles[string.lower(characterName or '')] or 'unknown'
+end
+
+local function statusFor(characterName)
+  if characterName == discovery.local_name then
+    return 'unknown'
+  end
+
+  return 'unknown'
 end
 
 local function firstProfile(character)
@@ -161,6 +209,52 @@ local function logDryRun(label, commandText)
   end
 
   print(line)
+end
+
+local function drawStatusHeader()
+  ImGui.Text('Character')
+  ImGui.SameLine(150)
+  ImGui.Text('Status')
+  ImGui.SameLine(260)
+  ImGui.Text('Active profile')
+end
+
+local function drawStatusRow(characterName)
+  ImGui.Text(characterName)
+  ImGui.SameLine(150)
+  ImGui.Text(statusFor(characterName))
+  ImGui.SameLine(260)
+  ImGui.Text(savedProfileFor(characterName))
+end
+
+local function drawStatusOverview()
+  ImGui.Text(config.name or 'PPQ KissAssist Manager')
+  ImGui.Text('Status overview')
+  ImGui.Separator()
+
+  for _, group in ipairs(displayGroups()) do
+    local peers = peersForGroup(group.peers)
+
+    ImGui.Text(group.label or group.peers or 'Group')
+    ImGui.SameLine(150)
+    ImGui.Text('Peers: ' .. tostring(#peers))
+    if group.control then
+      ImGui.SameLine(260)
+      ImGui.Text('Control: ' .. group.control)
+    end
+
+    drawStatusHeader()
+
+    if #peers == 0 then
+      ImGui.Text('(no peers reported)')
+    else
+      for _, peer in ipairs(peers) do
+        drawStatusRow(peer)
+      end
+    end
+
+    ImGui.Separator()
+  end
 end
 
 local function drawCharacterRow(character)
@@ -288,36 +382,54 @@ local function render()
   isOpen, shouldDraw = ImGui.Begin('PPQ KissAssist Manager', isOpen)
 
   if shouldDraw then
-    ImGui.Text(config.name or 'Unnamed config')
-    ImGui.Text('Assist: ' .. tostring(config.assist or ''))
-    ImGui.Text('Current scaffold is dry-run only. No real commands are sent.')
-    ImGui.Separator()
+    drawStatusOverview()
 
-    drawDanNetDiscovery()
-
-    ImGui.Separator()
-
-    drawGroupActions()
-
-    ImGui.Separator()
-    ImGui.Text('Configured characters')
-
-    for _, character in ipairs(config.characters or {}) do
-      drawCharacterRow(character)
+    if ImGui.Button('Refresh') then
+      refreshDanNetDiscovery()
+      logDryRun('refresh', 'Read local DanNet peer/group TLOs')
     end
 
-    ImGui.Separator()
-    ImGui.Text('Dry-run log')
+    ImGui.SameLine()
 
-    if #dryRunLog == 0 then
-      ImGui.Text('No dry-run actions yet.')
-    else
-      for _, line in ipairs(dryRunLog) do
-        ImGui.TextWrapped(line)
+    if ImGui.Button(showDebug and 'Hide debug' or 'Show debug') then
+      showDebug = not showDebug
+    end
+
+    ImGui.Text('Read-only status scaffold. Status/profile discovery is not wired yet.')
+    ImGui.Separator()
+
+    if showDebug then
+      drawDanNetDiscovery()
+
+      ImGui.Separator()
+
+      drawGroupActions()
+
+      ImGui.Separator()
+      ImGui.Text('Configured characters')
+
+      local characters = config.characters or {}
+      if #characters == 0 then
+        ImGui.Text('No configured character rows. Top table is built from DanNet groups.')
+      else
+        for _, character in ipairs(characters) do
+          drawCharacterRow(character)
+        end
       end
-    end
 
-    ImGui.Separator()
+      ImGui.Separator()
+      ImGui.Text('Dry-run log')
+
+      if #dryRunLog == 0 then
+        ImGui.Text('No dry-run actions yet.')
+      else
+        for _, line in ipairs(dryRunLog) do
+          ImGui.TextWrapped(line)
+        end
+      end
+
+      ImGui.Separator()
+    end
 
     if ImGui.Button('Close Script') then
       terminate = true

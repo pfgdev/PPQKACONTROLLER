@@ -8,6 +8,7 @@
 - Render placeholder character rows.
 - Log dry-run command previews only.
 - Add a read-only DanNet discovery view.
+- Put a compact Group 1 / Group 2 status table at the top of the UI.
 
 ## Phase 1: MVP Command UI
 
@@ -20,8 +21,8 @@
 
 ## Phase 2: First Status View
 
-- Show configured or discovered character names.
-- Organize characters by configured group where practical.
+- Show discovered character names from DanNet display groups.
+- Organize characters by Group 1 and Group 2 display sections.
 - Show KissAssist running, not running, or paused if detectable.
 - Show current active KissAssist profile if detectable.
 - Avoid fake certainty when status cannot be detected.

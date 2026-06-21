@@ -6,7 +6,7 @@ PPQ KissAssist Manager is intended to be a small MacroQuest Lua application with
 
 ### ImGui UI
 
-The UI displays configured or discovered characters, grouped where practical, with KissAssist status when that status can be detected. It will eventually expose per-character and group-level buttons for start, pause, resume, end, cleanup, movement, and assist workflows.
+The UI should lead with a compact status table: group, character, KissAssist status, and active profile. Deeper debug and command-preview details should live lower in the window and may eventually be hidden or removed.
 
 The initial UI is intentionally dry-run only. It renders placeholder rows and logs the command that would be sent.
 
@@ -14,10 +14,10 @@ The initial UI is intentionally dry-run only. It renders placeholder rows and lo
 
 The config defines:
 
-- Characters.
-- Class, role, and labels.
-- DanNet group names, including multiple groups such as Group 1 and Group 2.
-- KissAssist profiles per character.
+- Display groups such as Group 1 and Group 2.
+- DanNet peer groups used to discover character names.
+- DanNet control groups for future quick commands.
+- Locally saved active profile choices when live profile detection is not available.
 - Default profiles or full default command lines per character or group.
 - Command templates.
 - Command sequences for multi-step actions.
@@ -64,7 +64,8 @@ Later versions may use:
 ## Data Flow
 
 ```text
-Lua config -> UI rows -> command builder -> dry-run log now -> real dispatcher later
+DanNet peer groups -> compact status table -> debug/details lower in the window
+Lua config -> saved profile choices and command groups -> command builder later
 ```
 
 ## Safety Boundaries

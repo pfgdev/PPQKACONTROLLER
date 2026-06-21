@@ -1,8 +1,21 @@
 return {
   version = 1,
-  name = 'PPQ Group 1',
+  name = 'PPQ KA Controller',
   assist = 'Nandladin',
   dry_run = true,
+
+  display_groups = {
+    {
+      label = 'Group 1',
+      peers = 'g1',
+      control = 'g1kiss',
+    },
+    {
+      label = 'Group 2',
+      peers = 'g2',
+      control = 'g2kiss',
+    },
+  },
 
   groups = {
     all = 'g1',
@@ -44,75 +57,6 @@ return {
     },
   },
 
-  characters = {
-    {
-      name = 'Nandladin',
-      class = 'Warrior',
-      role = 'Manual tank / main assist',
-      manual = true,
-      kiss_enabled = false,
-      default_profile = nil,
-      profiles = {},
-      notes = 'Main driver and tank. Not normally controlled by KissAssist.',
-    },
-    {
-      name = 'Nodance',
-      class = 'Bard',
-      role = 'Manual puller / songs',
-      manual = true,
-      kiss_enabled = false,
-      default_profile = nil,
-      profiles = {},
-      notes = 'May use MQ2Twist separately. Not normally KissAssist controlled.',
-    },
-    {
-      name = 'Shadow',
-      class = 'Ranger',
-      role = 'Assist DPS',
-      manual = false,
-      kiss_enabled = true,
-      default_profile = 'KissAssist_Shadow.ini',
-      profiles = {
-        { label = 'Default DPS', ini = 'KissAssist_Shadow.ini' },
-      },
-      notes = 'Assist DPS profile.',
-    },
-    {
-      name = 'Nandarie',
-      class = 'Enchanter',
-      role = 'Buffs / DPS / CC',
-      manual = false,
-      kiss_enabled = true,
-      default_profile = 'KissAssist_Nandarie.ini',
-      profiles = {
-        { label = 'Default', ini = 'KissAssist_Nandarie.ini' },
-        { label = 'CC / Mez', ini = 'KissAssist_Nandarie_CC.ini' },
-      },
-      notes = 'May be paused for manual crowd control.',
-    },
-    {
-      name = 'Lagspike',
-      class = 'Cleric',
-      role = 'Primary healer',
-      manual = false,
-      kiss_enabled = true,
-      default_profile = 'KissAssist_Lagspike.ini',
-      profiles = {
-        { label = 'Default heals', ini = 'KissAssist_Lagspike.ini' },
-      },
-      notes = 'Heals, HoT on tank, Mark of Karn, hammer pet.',
-    },
-    {
-      name = 'Boomkenzie',
-      class = 'Druid',
-      role = 'Backup heals / utility / DPS',
-      manual = false,
-      kiss_enabled = true,
-      default_profile = 'KissAssist_DruidCharacter.ini',
-      profiles = {
-        { label = 'Default utility', ini = 'KissAssist_DruidCharacter.ini' },
-      },
-      notes = 'Rename this entry once the druid character name is confirmed.',
-    },
-  },
+  active_profiles = {},
+  characters = {},
 }
