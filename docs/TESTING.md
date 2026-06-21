@@ -65,8 +65,9 @@ Expected result in PPQ KissAssist Manager:
 - Peer count appears.
 - Joined groups appear if DanNet reports them.
 - Configured groups show peer names if DanNet reports peers for those groups.
+- The top table shows `active`, `paused`, `inactive`, or `unknown` after DanNet status queries return.
 
-This test does not send commands to any character.
+This test uses read-only `/dquery` status probes for `Macro.Name` and `Macro.Paused`. It does not start, pause, resume, end, or otherwise control KissAssist.
 
 ## Local Syntax Check
 

@@ -24,6 +24,7 @@
 - Show discovered character names from DanNet display groups.
 - Organize characters by Group 1 and Group 2 display sections.
 - Show KissAssist running, not running, or paused if detectable.
+- Query `Macro.Name` and `Macro.Paused` through DanNet as the first status probe.
 - Show current active KissAssist profile if detectable.
 - Avoid fake certainty when status cannot be detected.
 

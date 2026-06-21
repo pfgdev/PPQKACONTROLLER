@@ -1,10 +1,35 @@
 # Commands
 
-This document records the intended command patterns for DanNet and KissAssist control.
+This document records the intended command patterns for DanNet and KissAssist control/status.
 
-The current Lua scaffold does not send any of these commands. It only logs dry-run command previews.
+The current Lua scaffold sends read-only DanNet status queries. It does not start, pause, resume, end, or otherwise control KissAssist yet.
+
+## Read-Only Status Queries
+
+Ask a peer what macro is running:
+
+```text
+/dquery {character} -q Macro.Name -t 1000
+```
+
+Ask whether the peer's macro is paused:
+
+```text
+/dquery {character} -q Macro.Paused -t 1000
+```
+
+The UI reads the returned values from DanNet query results and interprets them as:
+
+- `active`: a macro with `kiss` in the name is running and not paused.
+- `paused`: a macro with `kiss` in the name is running and paused.
+- `inactive`: no macro is running, or a non-KissAssist macro is running.
+- `unknown`: no usable response has been received yet.
+
+Active profile discovery is not wired yet.
 
 ## Character Commands
+
+These control commands are planned but are not dispatched by the main UI yet. They may appear in dry-run/debug previews.
 
 Start KissAssist with the default assist:
 
@@ -98,4 +123,3 @@ The PPQ sample config includes:
 - `/end` should be considered disruptive.
 - Hard-stop group commands should be clearly labeled.
 - Future real dispatch should support dry-run mode and confirmation options.
-

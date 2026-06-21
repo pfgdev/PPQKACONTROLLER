@@ -36,12 +36,13 @@ The MVP will build strings from templates, show those strings in the UI where us
 
 ### Command Dispatcher
 
-The dispatcher will eventually call `mq.cmd()` or `mq.cmdf()` for real commands.
+The status layer uses `mq.cmdf()` for read-only DanNet `/dquery` probes. The dispatcher will eventually use `mq.cmd()` or `mq.cmdf()` for real control commands.
 
 Current scaffold behavior:
 
-- No command dispatch.
-- Buttons log dry-run command text only.
+- Read-only DanNet status query dispatch.
+- No KissAssist start, pause, resume, end, cleanup, movement, attack, or pet command dispatch.
+- Debug buttons log dry-run command text only.
 
 ### Status Layer
 

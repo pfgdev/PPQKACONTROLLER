@@ -10,6 +10,12 @@ local shouldDraw = true
 local showDebug = false
 local dryRunLog = {}
 local lastRefresh = 0
+local lastStatusQuery = 0
+local STATUS_QUERY_SECONDS = 8
+local STATUS_QUERIES = {
+  'Macro.Name',
+  'Macro.Paused',
+}
 local discovery = {
   local_name = 'unknown',
   version = 'unknown',
@@ -18,6 +24,7 @@ local discovery = {
   joined = {},
   groups = {},
 }
+local statusCache = {}
 
 local ok, configOrError = pcall(require, CONFIG_MODULE)
 local config = ok and configOrError or {
@@ -107,6 +114,23 @@ local function peersForGroup(groupName)
   end, ''))
 end
 
+local function allDisplayPeers()
+  local seen = {}
+  local peers = {}
+
+  for _, group in ipairs(displayGroups()) do
+    for _, peer in ipairs(peersForGroup(group.peers)) do
+      if not seen[peer] then
+        seen[peer] = true
+        table.insert(peers, peer)
+      end
+    end
+  end
+
+  table.sort(peers)
+  return peers
+end
+
 local function refreshDanNetDiscovery()
   discovery.local_name = safeTlo('DanNet.Name', function()
     return mq.TLO.DanNet.Name()
@@ -153,9 +177,104 @@ local function savedProfileFor(characterName)
   return profiles[characterName] or profiles[string.lower(characterName or '')] or 'unknown'
 end
 
+local function normalizePeerName(name)
+  return string.lower(tostring(name or ''))
+end
+
+local function isLocalPeer(characterName)
+  return normalizePeerName(characterName) == normalizePeerName(discovery.local_name)
+end
+
+local function readLocalMacroStatus()
+  return {
+    macro_name = safeTlo('Macro.Name', function()
+      return mq.TLO.Macro.Name()
+    end, ''),
+    macro_paused = safeTlo('Macro.Paused', function()
+      return mq.TLO.Macro.Paused()
+    end, false),
+    query_ok = true,
+  }
+end
+
+local function readPeerQuery(peer, query)
+  return safeTlo('DanNet[' .. tostring(peer) .. '].Q[' .. query .. ']', function()
+    return mq.TLO.DanNet(peer).Q(query)()
+  end, nil)
+end
+
+local function submitPeerStatusQueries(peer)
+  if isLocalPeer(peer) then
+    statusCache[peer] = readLocalMacroStatus()
+    return
+  end
+
+  statusCache[peer] = statusCache[peer] or {}
+
+  for _, query in ipairs(STATUS_QUERIES) do
+    local success, errorMessage = pcall(function()
+      mq.cmdf('/dquery %s -q %s -t 1000', peer, query)
+    end)
+
+    if not success then
+      statusCache[peer].query_error = tostring(errorMessage)
+    end
+  end
+end
+
+local function refreshPeerStatusQueries()
+  for _, peer in ipairs(allDisplayPeers()) do
+    submitPeerStatusQueries(peer)
+  end
+end
+
+local function updatePeerStatusFromQueries(peer)
+  if isLocalPeer(peer) then
+    statusCache[peer] = readLocalMacroStatus()
+    return statusCache[peer]
+  end
+
+  local status = statusCache[peer] or {}
+  local macroName = readPeerQuery(peer, 'Macro.Name')
+  local macroPaused = readPeerQuery(peer, 'Macro.Paused')
+
+  if macroName ~= nil then
+    status.macro_name = tostring(macroName)
+  end
+
+  if macroPaused ~= nil then
+    status.macro_paused = tostring(macroPaused)
+  end
+
+  status.query_ok = status.macro_name ~= nil or status.macro_paused ~= nil
+  statusCache[peer] = status
+  return status
+end
+
+local function isTruthy(value)
+  local text = string.lower(tostring(value or ''))
+  return text == 'true' or text == '1' or text == 'yes'
+end
+
 local function statusFor(characterName)
-  if characterName == discovery.local_name then
-    return 'unknown'
+  local status = updatePeerStatusFromQueries(characterName)
+  local macroName = tostring(status.macro_name or '')
+  local normalizedMacroName = string.lower(macroName)
+
+  if normalizedMacroName == '' or normalizedMacroName == 'null' then
+    return 'inactive'
+  end
+
+  if string.find(normalizedMacroName, 'kiss') then
+    if isTruthy(status.macro_paused) then
+      return 'paused'
+    end
+
+    return 'active'
+  end
+
+  if status.query_ok then
+    return 'inactive'
   end
 
   return 'unknown'
@@ -372,6 +491,22 @@ local function drawDanNetDiscovery()
     ImGui.SameLine(180)
     ImGui.TextWrapped(formatList(groupDiscovery.peers))
   end
+
+  ImGui.Separator()
+  ImGui.Text('Status query debug')
+
+  for _, peer in ipairs(allDisplayPeers()) do
+    local status = updatePeerStatusFromQueries(peer)
+    ImGui.Text(peer)
+    ImGui.SameLine(150)
+    ImGui.Text('Macro.Name: ' .. tostring(status.macro_name or 'unknown'))
+    ImGui.SameLine(360)
+    ImGui.Text('Paused: ' .. tostring(status.macro_paused or 'unknown'))
+
+    if status.query_error then
+      ImGui.TextWrapped('Query error: ' .. status.query_error)
+    end
+  end
 end
 
 local function render()
@@ -386,7 +521,8 @@ local function render()
 
     if ImGui.Button('Refresh') then
       refreshDanNetDiscovery()
-      logDryRun('refresh', 'Read local DanNet peer/group TLOs')
+      refreshPeerStatusQueries()
+      logDryRun('refresh', 'Read local DanNet peer/group TLOs and query macro status')
     end
 
     ImGui.SameLine()
@@ -395,7 +531,7 @@ local function render()
       showDebug = not showDebug
     end
 
-    ImGui.Text('Read-only status scaffold. Status/profile discovery is not wired yet.')
+    ImGui.Text('Read-only status scaffold. Macro status uses DanNet queries; profiles are still local/unknown.')
     ImGui.Separator()
 
     if showDebug then
@@ -441,12 +577,19 @@ end
 
 mq.imgui.init(SCRIPT_NAME, render)
 refreshDanNetDiscovery()
+refreshPeerStatusQueries()
+lastStatusQuery = os.time()
 
 while not terminate do
   local now = os.time()
   if now - lastRefresh >= 5 then
     refreshDanNetDiscovery()
     lastRefresh = now
+  end
+
+  if now - lastStatusQuery >= STATUS_QUERY_SECONDS then
+    refreshPeerStatusQueries()
+    lastStatusQuery = now
   end
 
   mq.delay(500)
