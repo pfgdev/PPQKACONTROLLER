@@ -15,3 +15,5 @@
 - Added config-defined loadouts with per-character Load and Unload actions.
 - Improved profile/loadout command queue timing to avoid `/end` racing after a new KissAssist start.
 - Moved profile/loadout command timing into config with a 2000ms end-to-start baseline.
+- Added live MacroQuest group display with configured DanNet groups as fallback.
+- Changed profile/loadout controls to stage pending target behavior changes before `Apply` sends commands.

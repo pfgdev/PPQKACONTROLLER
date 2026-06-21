@@ -9,6 +9,7 @@ local isOpen = true
 local shouldDraw = true
 local showDebug = false
 local selectedLoadoutKey = nil
+local pendingChanges = {}
 local dryRunLog = {}
 local commandQueue = {}
 local lastRefresh = 0
@@ -34,6 +35,7 @@ local pausedProbe = {
   quiet_until = 0,
   results = {},
 }
+local currentGroupViews
 
 local ok, configOrError = pcall(require, CONFIG_MODULE)
 local config = ok and configOrError or {
@@ -129,8 +131,10 @@ local function allDisplayPeers()
   local seen = {}
   local peers = {}
 
-  for _, group in ipairs(displayGroups()) do
-    for _, peer in ipairs(peersForGroup(group.peers)) do
+  local groups = currentGroupViews and currentGroupViews() or {}
+
+  for _, group in ipairs(groups) do
+    for _, peer in ipairs(group.peers or {}) do
       if not seen[peer] then
         seen[peer] = true
         table.insert(peers, peer)
@@ -299,14 +303,6 @@ local function selectedLoadout()
   return entries[1]
 end
 
-local function loadoutProfileKeyFor(loadout, characterName)
-  if not loadout or not loadout.characters then
-    return nil
-  end
-
-  return loadout.characters[characterName] or loadout.characters[characterConfigKey(characterName)]
-end
-
 local function loadoutCharacterEntries(loadout)
   local entries = {}
 
@@ -330,6 +326,81 @@ end
 
 local function isLocalPeer(characterName)
   return normalizePeerName(characterName) == normalizePeerName(discovery.local_name)
+end
+
+local function cleanTloName(value)
+  local text = tostring(value or '')
+  local normalized = string.lower(text)
+
+  if text == '' or normalized == 'null' or normalized == 'nil' then
+    return nil
+  end
+
+  return text
+end
+
+local function liveGroupView()
+  local memberCount = tonumber(safeTlo('Group.Members', function()
+    return mq.TLO.Group.Members()
+  end, 0)) or 0
+
+  if memberCount <= 0 then
+    return nil
+  end
+
+  local peers = {}
+  local seen = {}
+
+  for index = 0, memberCount do
+    local peer = cleanTloName(safeTlo('Group.Member[' .. tostring(index) .. '].Name', function()
+      return mq.TLO.Group.Member(index).Name()
+    end, nil))
+
+    if peer and not seen[normalizePeerName(peer)] then
+      seen[normalizePeerName(peer)] = true
+      table.insert(peers, peer)
+    end
+  end
+
+  if #peers == 0 then
+    return nil
+  end
+
+  local leader = cleanTloName(safeTlo('Group.Leader.Name', function()
+    return mq.TLO.Group.Leader.Name()
+  end, nil)) or peers[1]
+
+  local mainAssist = cleanTloName(safeTlo('Group.MainAssist.Name', function()
+    return mq.TLO.Group.MainAssist.Name()
+  end, nil))
+
+  return {
+    {
+      label = leader .. "'s Group",
+      peers = peers,
+      main_assist = mainAssist,
+      source = 'live',
+    },
+  }
+end
+
+local function configuredGroupViews()
+  local groups = {}
+
+  for _, group in ipairs(displayGroups()) do
+    table.insert(groups, {
+      label = group.label or group.peers or 'Group',
+      peers = peersForGroup(group.peers),
+      control = group.control,
+      source = 'configured',
+    })
+  end
+
+  return groups
+end
+
+currentGroupViews = function()
+  return liveGroupView() or configuredGroupViews()
 end
 
 local function readLocalMacroStatus()
@@ -574,26 +645,6 @@ local function clearQueuedCommandsForTargets(targets)
   end
 end
 
-local function clearQueuedCommandsForCharacter(characterName)
-  clearQueuedCommandsForTargets({
-    [characterConfigKey(characterName)] = true,
-  })
-end
-
-local function runSelectedProfile(characterName, profile)
-  if not profile or not profile.ini or profile.ini == '' or profile.ini == 'unknown' then
-    logAction('SKIP', 'No configured INI for ' .. tostring(characterName))
-    return
-  end
-
-  local endCommand = string.format('/dex %s /end', characterName)
-  local startCommand = string.format('/dex %s /mac kissassist ini %s assist ma %s', characterName, profile.ini, config.assist or '')
-
-  clearQueuedCommandsForCharacter(characterName)
-  enqueueCommand(endCommand, 0, characterName)
-  enqueueCommand(startCommand, timingValue('end_to_start_delay_ms', DEFAULT_END_TO_START_DELAY_MS), characterName)
-end
-
 local function loadCharacterProfile(characterName, profile, assist, endDelayMs, startDelayMs)
   if not profile or not profile.ini or profile.ini == '' or profile.ini == 'unknown' then
     logAction('SKIP', 'No configured INI for ' .. tostring(characterName))
@@ -604,93 +655,139 @@ local function loadCharacterProfile(characterName, profile, assist, endDelayMs, 
   enqueueCommand(string.format('/dex %s /mac kissassist ini %s assist ma %s', characterName, profile.ini, assist or config.assist or ''), startDelayMs, characterName)
 end
 
-local function runLoadout(loadout)
+local function pendingChangeFor(characterName)
+  return pendingChanges[characterConfigKey(characterName)]
+end
+
+local function clearPendingChange(characterName)
+  pendingChanges[characterConfigKey(characterName)] = nil
+end
+
+local function clearPendingChanges()
+  pendingChanges = {}
+end
+
+local function pendingChangeCount()
+  local count = 0
+
+  for _ in pairs(pendingChanges) do
+    count = count + 1
+  end
+
+  return count
+end
+
+local function stageManualTarget(characterName)
+  pendingChanges[characterConfigKey(characterName)] = {
+    character = characterName,
+    kind = 'manual',
+  }
+end
+
+local function stageProfileTarget(characterName, profileKey, assist)
+  pendingChanges[characterConfigKey(characterName)] = {
+    character = characterName,
+    kind = 'profile',
+    profile = profileKey,
+    assist = assist,
+  }
+end
+
+local function stageLoadout(loadout)
   if not loadout then
     logAction('SKIP', 'No loadout selected')
     return
   end
 
-  local assist = loadout.assist or config.assist
-  local targets = {}
   local entries = loadoutCharacterEntries(loadout)
 
   for _, entry in ipairs(entries) do
-    targets[characterConfigKey(entry.character)] = true
+    stageProfileTarget(entry.character, entry.profile, loadout.assist or config.assist)
   end
 
-  clearQueuedCommandsForTargets(targets)
-
-  for index, entry in ipairs(entries) do
-    config.active_profiles[characterConfigKey(entry.character)] = entry.profile
-    local endSpacingMs = timingValue('loadout_end_spacing_ms', DEFAULT_LOADOUT_END_SPACING_MS)
-    local startSpacingMs = timingValue('loadout_start_spacing_ms', DEFAULT_LOADOUT_START_SPACING_MS)
-    local restartDelayMs = timingValue('end_to_start_delay_ms', DEFAULT_END_TO_START_DELAY_MS)
-
-    loadCharacterProfile(
-      entry.character,
-      profileForKey(entry.character, entry.profile),
-      assist,
-      (index - 1) * endSpacingMs,
-      restartDelayMs + ((index - 1) * startSpacingMs)
-    )
-  end
+  logAction('STAGE', 'Staged ' .. tostring(#entries) .. ' targets from ' .. tostring(loadout.label or loadout.key))
 end
 
-local function unloadLoadout(loadout)
+local function stageUnloadLoadout(loadout)
   if not loadout then
     logAction('SKIP', 'No loadout selected')
     return
   end
 
-  local targets = {}
-  local entries = loadoutCharacterEntries(loadout)
-
-  for _, entry in ipairs(entries) do
-    targets[characterConfigKey(entry.character)] = true
+  for _, entry in ipairs(loadoutCharacterEntries(loadout)) do
+    stageManualTarget(entry.character)
   end
+
+  logAction('STAGE', 'Staged manual targets from ' .. tostring(loadout.label or loadout.key))
+end
+
+local function applyPendingChanges()
+  local entries = {}
+  local targets = {}
+
+  for key, change in pairs(pendingChanges) do
+    table.insert(entries, change)
+    targets[key] = true
+  end
+
+  if #entries == 0 then
+    logAction('SKIP', 'No pending changes')
+    return
+  end
+
+  table.sort(entries, function(left, right)
+    return left.character < right.character
+  end)
 
   clearQueuedCommandsForTargets(targets)
 
-  for index, entry in ipairs(entries) do
-    enqueueCommand(
-      string.format('/dex %s /end', entry.character),
-      (index - 1) * timingValue('loadout_end_spacing_ms', DEFAULT_LOADOUT_END_SPACING_MS),
-      entry.character
-    )
+  local endSpacingMs = timingValue('loadout_end_spacing_ms', DEFAULT_LOADOUT_END_SPACING_MS)
+  local startSpacingMs = timingValue('loadout_start_spacing_ms', DEFAULT_LOADOUT_START_SPACING_MS)
+  local restartDelayMs = timingValue('end_to_start_delay_ms', DEFAULT_END_TO_START_DELAY_MS)
+
+  for index, change in ipairs(entries) do
+    local endDelayMs = (index - 1) * endSpacingMs
+
+    if change.kind == 'manual' then
+      enqueueCommand(string.format('/dex %s /end', change.character), endDelayMs, change.character)
+    elseif change.kind == 'profile' then
+      config.active_profiles[characterConfigKey(change.character)] = change.profile
+      loadCharacterProfile(
+        change.character,
+        profileForKey(change.character, change.profile),
+        change.assist or config.assist,
+        endDelayMs,
+        restartDelayMs + ((index - 1) * startSpacingMs)
+      )
+    end
   end
+
+  logAction('APPLY', 'Applied ' .. tostring(#entries) .. ' pending changes')
+  clearPendingChanges()
 end
 
-local function loadoutIntentFor(characterName)
-  local loadout = selectedLoadout()
-  local profileKey = loadoutProfileKeyFor(loadout, characterName)
-
-  if not profileKey then
-    return 'not included'
+local function changeCountText(count)
+  if count == 1 then
+    return '1 Change'
   end
 
-  local profile = profileForKey(characterName, profileKey)
-  local activeKey = selectedProfileKeyFor(characterName)
-
-  if activeKey == profileKey then
-    return 'load ' .. profile.label
-  end
-
-  return 'change to ' .. profile.label
+  return tostring(count) .. ' Changes'
 end
 
 local function drawLoadoutControls()
   local entries = loadoutEntries()
   local loadout = selectedLoadout()
+  local changeCount = pendingChangeCount()
 
-  ImGui.Text('Loadout')
-  ImGui.SameLine(80)
+  ImGui.Text('Current Loadout')
+  ImGui.SameLine(120)
 
   if #entries == 0 then
     ImGui.Text('none configured')
     return
   end
 
-  ImGui.SetNextItemWidth(180)
+  ImGui.SetNextItemWidth(190)
 
   if ImGui.BeginCombo('##loadout_selector', loadout.label or loadout.key or 'unknown') then
     for _, entry in ipairs(entries) do
@@ -710,49 +807,96 @@ local function drawLoadoutControls()
 
   ImGui.SameLine()
 
-  if ImGui.Button('Load') then
-    runLoadout(selectedLoadout())
+  if ImGui.Button('Stage Loadout') then
+    stageLoadout(selectedLoadout())
   end
 
   ImGui.SameLine()
 
-  if ImGui.Button('Unload') then
-    unloadLoadout(selectedLoadout())
+  if ImGui.Button('Stage Unload') then
+    stageUnloadLoadout(selectedLoadout())
+  end
+
+  ImGui.SameLine(520)
+  ImGui.Text(changeCountText(changeCount) .. ' pending')
+  ImGui.SameLine()
+
+  if ImGui.Button('Clear') then
+    clearPendingChanges()
+  end
+
+  ImGui.SameLine()
+
+  if ImGui.Button('Apply ' .. changeCountText(changeCount)) then
+    applyPendingChanges()
   end
 end
 
 local function drawStatusHeader()
   ImGui.Text('Character')
-  ImGui.SameLine(150)
-  ImGui.Text('Status')
-  ImGui.SameLine(260)
-  ImGui.Text('Active profile')
+  ImGui.SameLine(180)
+  ImGui.Text('Current behavior')
   ImGui.SameLine(380)
-  ImGui.Text('Config file')
-  ImGui.SameLine(620)
-  ImGui.Text('Loadout')
+  ImGui.Text('Target behavior')
 end
 
-local function drawProfileDropdown(characterName)
-  local entries = profileEntriesFor(characterName)
-  local selectedKey = selectedProfileKeyFor(characterName)
+local function currentBehaviorFor(characterName)
   local selectedProfile = selectedProfileFor(characterName)
 
-  if #entries == 0 then
-    ImGui.Text('unknown')
-    return selectedProfile
+  if statusFor(characterName) == 'active' then
+    return selectedProfile.label, selectedProfile
   end
 
-  ImGui.SetNextItemWidth(100)
+  return 'Manual', selectedProfile
+end
 
-  if ImGui.BeginCombo('##profile_' .. characterName, selectedProfile.label) then
+local function pendingChangeLabel(characterName)
+  local change = pendingChangeFor(characterName)
+
+  if not change then
+    return 'No Change'
+  end
+
+  if change.kind == 'manual' then
+    return 'Manual'
+  end
+
+  if change.kind == 'profile' then
+    return profileForKey(characterName, change.profile).label
+  end
+
+  return 'No Change'
+end
+
+local function drawTargetDropdown(characterName)
+  local entries = profileEntriesFor(characterName)
+  local pending = pendingChangeFor(characterName)
+
+  ImGui.SetNextItemWidth(230)
+
+  if ImGui.BeginCombo('##target_' .. characterName, pendingChangeLabel(characterName)) then
+    if ImGui.Selectable('No Change', pending == nil) then
+      clearPendingChange(characterName)
+    end
+
+    if pending == nil then
+      ImGui.SetItemDefaultFocus()
+    end
+
+    local manualSelected = pending and pending.kind == 'manual'
+    if ImGui.Selectable('Manual', manualSelected) then
+      stageManualTarget(characterName)
+    end
+
+    if manualSelected then
+      ImGui.SetItemDefaultFocus()
+    end
+
     for _, entry in ipairs(entries) do
-      local isSelected = entry.key == selectedKey
+      local isSelected = pending and pending.kind == 'profile' and pending.profile == entry.key
 
-      if ImGui.Selectable(entry.label, isSelected) and entry.key ~= selectedKey then
-        config.active_profiles[characterConfigKey(characterName)] = entry.key
-        selectedProfile = selectedProfileFor(characterName)
-        runSelectedProfile(characterName, selectedProfile)
+      if ImGui.Selectable(entry.label, isSelected) then
+        stageProfileTarget(characterName, entry.key, (selectedLoadout() and selectedLoadout().assist) or config.assist)
       end
 
       if isSelected then
@@ -763,23 +907,33 @@ local function drawProfileDropdown(characterName)
     ImGui.EndCombo()
   end
 
-  if ImGui.IsItemHovered() then
-    ImGui.SetTooltip(selectedProfile.ini)
+  if ImGui.IsItemHovered() and pending and pending.kind == 'profile' then
+    ImGui.SetTooltip(profileForKey(characterName, pending.profile).ini)
   end
-
-  return selectedProfile
 end
 
 local function drawStatusRow(characterName)
-  ImGui.Text(characterName)
-  ImGui.SameLine(150)
-  ImGui.Text(statusFor(characterName))
-  ImGui.SameLine(260)
-  local selectedProfile = drawProfileDropdown(characterName)
+  local pending = pendingChangeFor(characterName)
+  local currentBehavior, currentProfile = currentBehaviorFor(characterName)
+  local displayName = pending and ('* ' .. characterName) or characterName
+
+  ImGui.Text(displayName)
+  ImGui.SameLine(180)
+  ImGui.Text(currentBehavior)
+
+  if ImGui.IsItemHovered() then
+    ImGui.SetTooltip(currentProfile.ini)
+  end
+
   ImGui.SameLine(380)
-  ImGui.Text(selectedProfile.ini)
-  ImGui.SameLine(620)
-  ImGui.Text(loadoutIntentFor(characterName))
+  drawTargetDropdown(characterName)
+
+  if pending then
+    ImGui.SameLine(620)
+    if ImGui.Button('X##clear_target_' .. characterName) then
+      clearPendingChange(characterName)
+    end
+  end
 end
 
 local function drawStatusOverview()
@@ -788,15 +942,23 @@ local function drawStatusOverview()
   ImGui.Text('Status overview')
   ImGui.Separator()
 
-  for _, group in ipairs(displayGroups()) do
-    local peers = peersForGroup(group.peers)
+  for _, group in ipairs(currentGroupViews()) do
+    local peers = group.peers or {}
 
     ImGui.Text(group.label or group.peers or 'Group')
     ImGui.SameLine(150)
     ImGui.Text('Peers: ' .. tostring(#peers))
+    if group.main_assist then
+      ImGui.SameLine(260)
+      ImGui.Text('MA: ' .. group.main_assist)
+    end
     if group.control then
       ImGui.SameLine(260)
       ImGui.Text('Control: ' .. group.control)
+    end
+    if group.source == 'configured' then
+      ImGui.SameLine(430)
+      ImGui.Text('fallback')
     end
 
     drawStatusHeader()
@@ -980,7 +1142,7 @@ local function render()
       showDebug = not showDebug
     end
 
-    ImGui.Text('Status uses DanNet queries. Changing a profile restarts KissAssist on that character.')
+    ImGui.Text('Status uses DanNet queries. Target changes are staged until Apply is clicked.')
     ImGui.Separator()
 
     if showDebug then
@@ -995,7 +1157,7 @@ local function render()
 
       local characters = config.characters or {}
       if #characters == 0 then
-        ImGui.Text('No configured character rows. Top table is built from DanNet groups.')
+        ImGui.Text('No configured character rows. Top table uses live group membership with DanNet fallback.')
       else
         for _, character in ipairs(characters) do
           drawCharacterRow(character)

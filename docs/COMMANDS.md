@@ -2,7 +2,7 @@
 
 This document records the intended command patterns for DanNet and KissAssist control/status.
 
-The current Lua scaffold sends read-only DanNet status queries. It also sends real per-character commands when an active profile dropdown is changed.
+The current Lua scaffold sends read-only DanNet status queries. Target behavior dropdowns stage changes locally; `Apply` sends the real per-character commands.
 
 ## Read-Only Status Queries
 
@@ -30,9 +30,9 @@ The UI reads the returned values from DanNet query results and interprets them a
 
 Active profile discovery is not wired yet.
 
-## Profile Dropdown Commands
+## Target Behavior Commands
 
-Changing a character's active profile dropdown updates the in-memory active profile and queues:
+Choosing a profile target does not immediately run a command. When `Apply` is clicked, each staged profile target updates the in-memory active profile and queues:
 
 ```text
 /dex {character} /end
@@ -46,24 +46,30 @@ Then, after a short delay:
 
 This restart flow is intentional for now because it is predictable and avoids relying on mid-macro profile swapping.
 
+Choosing `Manual` does not immediately run a command. When `Apply` is clicked, each staged manual target queues:
+
+```text
+/dex {character} /end
+```
+
 ## Loadout Commands
 
 Loadouts use per-character `/dex` commands, not group-wide KissAssist starts, because each character may use a different profile.
 
-Load sends, for each character in the selected loadout:
+`Stage Loadout` stages profile targets for each character in the selected loadout. `Apply` then sends:
 
 ```text
 /dex {character} /end
 /dex {character} /mac kissassist ini {profile} assist ma {assist}
 ```
 
-Unload sends, for each character in the selected loadout:
+`Stage Unload` stages manual targets for each character in the selected loadout. `Apply` then sends:
 
 ```text
 /dex {character} /end
 ```
 
-Characters not listed in the loadout are not affected.
+Characters not listed in the loadout are not staged or affected.
 
 The command queue clears pending commands for affected characters before scheduling a new profile/loadout action. It also waits between `/end` and `/mac kissassist` so an old `/end` does not finish after the new macro starts. The PPQ sample config uses a 2000ms end-to-start delay.
 

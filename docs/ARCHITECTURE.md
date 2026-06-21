@@ -6,15 +6,15 @@ PPQ KissAssist Manager is intended to be a small MacroQuest Lua application with
 
 ### ImGui UI
 
-The UI should lead with a compact status table: group, character, KissAssist status, and active profile. Deeper debug and command-preview details should live lower in the window and may eventually be hidden or removed.
+The UI should lead with a compact status table: group, character, current behavior, and target behavior. Deeper debug and command-preview details should live lower in the window and may eventually be hidden or removed.
 
-The main status UI can send real per-character profile restart commands from the active profile dropdown. Debug-only controls may still log command previews without dispatching them.
+The main status UI stages target behavior changes first. Real per-character commands are only sent when `Apply` is clicked. Debug-only controls may still log command previews without dispatching them.
 
 ### Config
 
 The config defines:
 
-- Display groups such as Group 1 and Group 2.
+- Display groups such as Group 1 and Group 2, used as fallback when live group membership is unavailable.
 - DanNet peer groups used to discover character names.
 - DanNet control groups for future quick commands.
 - Locally saved active profile choices. An active profile is the profile this manager intends to load for a character.
@@ -36,21 +36,20 @@ The MVP will build strings from templates, show those strings in the UI where us
 
 ### Command Dispatcher
 
-The status layer uses `mq.cmdf()` for read-only DanNet `/dquery` probes. Normal status polling queries `Macro.Name`; `Macro.Paused` is available through an isolated debug probe. Profile dropdown changes and loadout actions use a small queued dispatcher to send real per-character `/dex` commands without blocking ImGui rendering.
+The status layer uses live MacroQuest `Group` TLOs for the currently grouped characters where available. It uses `mq.cmdf()` for read-only DanNet `/dquery` probes. Normal status polling queries `Macro.Name`; `Macro.Paused` is available through an isolated debug probe. Applying staged target behavior changes uses a small queued dispatcher to send real per-character `/dex` commands without blocking ImGui rendering.
 
 The command queue uses `mq.gettime()` millisecond timing. Before scheduling a profile or loadout action, it clears pending queued commands for the affected characters and leaves a delay between `/end` and `/mac kissassist`.
 
 Current scaffold behavior:
 
 - Read-only DanNet status query dispatch.
-- Per-character active profile dropdown dispatch: end KissAssist, then start KissAssist with the selected INI.
-- Loadout dispatch: per-character end/start for included characters.
+- Live current-group display with configured DanNet display groups as fallback.
+- Per-character target behavior dropdowns that stage `No Change`, `Manual`, or a configured profile.
+- Apply dispatch: per-character end/start for profile targets, or `/end` for manual targets.
 - No group start, group pause, group resume, hard stop, cleanup, movement, attack, or pet command dispatch from the main UI.
 - Debug buttons log dry-run command text only.
 
 ### Status Layer
-
-Live status is intentionally out of scope for the first scaffold, but it is the first major feature after command dispatch is proven.
 
 The first desired live status view is:
 
@@ -69,8 +68,8 @@ Later versions may use:
 ## Data Flow
 
 ```text
-DanNet peer groups -> compact status table -> debug/details lower in the window
-Lua config -> saved profile choices and command groups -> command builder later
+MacroQuest Group TLO or DanNet peer groups -> compact status table -> debug/details lower in the window
+Lua config -> saved profile choices and command groups -> staged target behavior -> command dispatcher
 ```
 
 ## Safety Boundaries

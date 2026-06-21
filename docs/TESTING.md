@@ -64,18 +64,19 @@ Expected result in PPQ KissAssist Manager:
 - Local DanNet name appears.
 - Peer count appears.
 - Joined groups appear if DanNet reports them.
-- Configured groups show peer names if DanNet reports peers for those groups.
-- The top table shows `active`, `paused`, `inactive`, or `unknown` after DanNet status queries return.
+- Your current in-game group appears first if MacroQuest exposes live group membership.
+- Configured groups show peer names as a fallback if live group membership is unavailable.
+- The top table shows `active`, `inactive`, or `unknown` after DanNet status queries return.
 
 This test uses read-only `/dquery` status probes for `Macro.Name`.
 
 To test `Macro.Paused`, open debug and press `Probe Macro.Paused only`. That button briefly pauses normal `Macro.Name` polling and submits only paused queries so the raw paused results are easier to inspect.
 
-Changing a profile dropdown is not read-only. It sends `/dex {character} /end`, then `/dex {character} /mac kissassist ini {profile} assist ma {assist}`.
+Changing a target behavior dropdown only stages a pending change. It does not send commands until `Apply` is clicked.
 
-Loadout buttons are also not read-only. `Load` ends and starts each included character with its configured profile. `Unload` ends each included character. Characters not included in the loadout are not affected.
+`Stage Loadout` and `Stage Unload` only stage pending changes. `Apply` sends the real `/dex` commands for the staged characters. Characters not included in the staged loadout are not affected.
 
-If a character starts KissAssist and then immediately prints that the macro ended, the end/start delay may still be too short for that character or server conditions. Report which character did it and whether it happened after pressing `Load`, changing a profile dropdown, or pressing `Unload` then `Load`.
+If a character starts KissAssist and then immediately prints that the macro ended, the end/start delay may still be too short for that character or server conditions. Report which character did it and whether it happened after pressing `Apply` for a profile target or after applying a manual target and then a profile target.
 
 ## Local Syntax Check
 

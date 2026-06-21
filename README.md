@@ -11,9 +11,9 @@ This repository is an initial scaffold only.
 - Documentation exists for the intended architecture, commands, config, and roadmap.
 - A sample PPQ Group 1 config exists at `lua/ppqka/config/ppq_g1.lua`.
 - A minimal ImGui script exists at `lua/ppqka/ppq_ka_manager.lua`.
-- The status UI uses read-only DanNet queries.
-- Changing a character's active profile dropdown sends real `/dex` commands to restart KissAssist with the selected INI.
-- Loadout `Load` and `Unload` buttons send real per-character `/dex` commands for included characters.
+- The status UI uses live MacroQuest group membership when available, with configured DanNet groups as a fallback.
+- Target behavior dropdowns stage pending changes instead of firing commands immediately.
+- `Apply` sends real per-character `/dex` commands for pending profile loads or manual `/end` targets.
 - Debug controls may still show dry-run command previews.
 
 ## File Layout
@@ -63,9 +63,9 @@ If MacroQuest does not match by basename, use:
 1. Start MacroQuest with Lua and ImGui support loaded.
 2. Run `/lua run ppqka/ppq_ka_manager`.
 3. Confirm the `PPQ KissAssist Manager` window opens.
-4. Confirm character status and configured active profiles appear.
-5. Only change a profile dropdown when you are ready for the script to restart KissAssist on that character.
-6. Only press loadout buttons when you are ready for the included characters to start or stop KissAssist.
+4. Confirm your live group appears, or that configured DanNet groups appear as a fallback.
+5. Change target behavior dropdowns or stage a loadout, then confirm the pending count changes.
+6. Only press `Apply` when you are ready for the staged characters to start or stop KissAssist.
 
 See `docs/TESTING.md` for the current step-by-step testing workflow.
 
@@ -86,4 +86,4 @@ This catches basic Lua syntax errors. It does not run MacroQuest APIs.
 - Send only explicit, visible commands.
 - Treat dangerous commands like `/end`, `/camp`, `/quit`, and broad group commands carefully.
 - Do not assume every character is online.
-- Do not claim live status until the project can actually detect it.
+- Show live data where it can be detected, and make uncertain/local saved values obvious.

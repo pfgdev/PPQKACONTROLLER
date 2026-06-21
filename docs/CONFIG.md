@@ -71,11 +71,13 @@ Named DanNet groups for debug display and future command templates. The user may
 
 Ordered groups to show in the main status table. `peers` is the DanNet group used to list characters. `control` is the DanNet group likely used later for quick commands.
 
+The main table prefers live MacroQuest group membership. These configured display groups are used as a fallback when live group data is unavailable.
+
 `active_profiles`
 
 Local saved active profile key by character name. This means "the profile this manager intends to load for that character," not necessarily a live value detected from KissAssist.
 
-Changing a profile in the UI currently updates this value in memory for the running script and immediately restarts KissAssist on that character with the selected profile. It does not write the config file back to disk yet.
+Applying a staged profile target updates this value in memory for the running script and restarts KissAssist on that character with the selected profile. It does not write the config file back to disk yet.
 
 `profiles`
 
@@ -172,7 +174,7 @@ Main assist used when loading this loadout.
 
 `characters`
 
-Map of lower-case character names to profile keys. Characters not listed are visible in the status table but are not affected by Load or Unload.
+Map of lower-case character names to profile keys. Characters not listed are visible in the status table but are not affected when the loadout is staged and applied.
 
 ## Command Timing Fields
 
