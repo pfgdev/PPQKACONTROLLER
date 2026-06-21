@@ -1435,6 +1435,10 @@ end
 
 local function clearPendingChanges()
   pendingChanges = {}
+end
+
+local function clearTargetSelection()
+  clearPendingChanges()
   selectedLoadoutKey = LOADOUT_NONE_KEY
 end
 
@@ -1489,7 +1493,7 @@ local function stageLoadout(loadout)
   end
 
   if loadout.kind == 'none' then
-    clearPendingChanges()
+    clearTargetSelection()
     return 0
   end
 
@@ -1577,7 +1581,7 @@ local function applyPendingChanges()
 
   logAction('APPLY', 'Applied ' .. tostring(#entries) .. ' pending changes')
   beginRapidStatusRefresh(entries, 1)
-  clearPendingChanges()
+  clearTargetSelection()
 end
 
 local function changeCountText(count)
@@ -1760,7 +1764,7 @@ local function drawLoadoutControls()
   ImGui.SameLine()
 
   if ImGui.Button('Clear') then
-    clearPendingChanges()
+    clearTargetSelection()
   end
 
   ImGui.SameLine()
