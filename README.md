@@ -65,6 +65,16 @@ If MacroQuest does not match by basename, use:
 
 See `docs/TESTING.md` for the current step-by-step testing workflow.
 
+## Local Syntax Check
+
+After installing LuaJIT, run this from the repository:
+
+```powershell
+.\scripts\check-lua.ps1
+```
+
+This catches basic Lua syntax errors. It does not run MacroQuest APIs.
+
 ## Design Principles
 
 - Keep KissAssist untouched.

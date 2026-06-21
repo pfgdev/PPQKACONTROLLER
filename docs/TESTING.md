@@ -68,6 +68,28 @@ Expected result in PPQ KissAssist Manager:
 
 This test does not send commands to any character.
 
+## Local Syntax Check
+
+Install LuaJIT:
+
+```powershell
+winget install DEVCOM.LuaJIT
+```
+
+Then run this from the repository:
+
+```powershell
+.\scripts\check-lua.ps1
+```
+
+If running the raw `luajit -e ...` command manually, first change into the repository folder:
+
+```powershell
+cd C:\Users\pmfel\repos\PPQKAController
+```
+
+The syntax check can catch basic Lua syntax errors, but it cannot validate MacroQuest-only APIs such as `mq`, `ImGui`, or DanNet TLO behavior.
+
 ## When Something Fails
 
 Write down:

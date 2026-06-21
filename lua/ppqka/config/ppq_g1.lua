@@ -103,7 +103,7 @@ return {
       notes = 'Heals, HoT on tank, Mark of Karn, hammer pet.',
     },
     {
-      name = 'DruidCharacter',
+      name = 'Boomkenzie',
       class = 'Druid',
       role = 'Backup heals / utility / DPS',
       manual = false,
