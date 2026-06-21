@@ -1131,19 +1131,40 @@ local function markInFlightChange(change)
   }
 end
 
-local function targetConfirmedByReporter(characterName, kind, profileKey)
+local function reportedProfileKey(characterName)
+  local reportedProfile = profileForIni(characterName, (statusCache[characterName] or {}).kiss_ini)
+
+  return reportedProfile and reportedProfile.key
+end
+
+local function targetConfirmedByReporter(characterName, kind, profileKey, startedAt)
   local status = statusFor(characterName)
+  local cached = statusCache[characterName] or {}
+  statusCache[characterName] = cached
 
   if status == 'inactive' and kind == 'manual' then
+    cached.profile_confirmed_by_running_macro = false
     return true
   end
 
   if (status == 'active' or status == 'paused') and kind == 'profile' then
-    local reportedProfile = profileForIni(characterName, (statusCache[characterName] or {}).kiss_ini)
+    local reportedKey = reportedProfileKey(characterName)
 
-    return reportedProfile and reportedProfile.key == profileKey
+    if reportedKey then
+      cached.profile_confirmed_by_running_macro = false
+      return reportedKey == profileKey
+    end
+
+    if startedAt and os.time() - startedAt < 2 then
+      cached.profile_confirmed_by_running_macro = false
+      return false
+    end
+
+    cached.profile_confirmed_by_running_macro = true
+    return true
   end
 
+  cached.profile_confirmed_by_running_macro = false
   return false
 end
 
@@ -1155,7 +1176,7 @@ local function inFlightChangeFor(characterName)
     return nil
   end
 
-  if targetConfirmedByReporter(characterName, change.kind, change.profile) then
+  if targetConfirmedByReporter(characterName, change.kind, change.profile, change.started_at) then
     inFlightChanges[key] = nil
     return nil
   end
@@ -1925,6 +1946,10 @@ local function drawDanNetDiscovery()
 
     if status.reporter_ignored_old then
       ImGui.Text('Ignored older reporter payload: ' .. tostring(status.reporter_ignored_old_age or 'unknown') .. 's old')
+    end
+
+    if status.profile_confirmed_by_running_macro then
+      ImGui.Text('Profile confirmation: running macro before IniFile reported')
     end
 
     ImGui.Text('Group.Members: ' .. tostring(status.group_members or 'unknown'))
