@@ -1,12 +1,12 @@
 # Architecture
 
-PPQ KissAssist Manager is intended to be a small MacroQuest Lua application with an ImGui front end, a config-driven roster model, and a command dispatch layer for DanNet/KissAssist commands.
+PPQ KissAssist Manager is intended to be a small MacroQuest Lua application with an ImGui front end, a config-driven roster/group model, a status layer, and a command dispatch layer for DanNet/KissAssist commands.
 
 ## Components
 
 ### ImGui UI
 
-The UI displays configured characters, roles, labels, and profile names. It will eventually expose per-character and group-level buttons for start, pause, resume, end, cleanup, movement, and assist workflows.
+The UI displays configured or discovered characters, grouped where practical, with KissAssist status when that status can be detected. It will eventually expose per-character and group-level buttons for start, pause, resume, end, cleanup, movement, and assist workflows.
 
 The initial UI is intentionally dry-run only. It renders placeholder rows and logs the command that would be sent.
 
@@ -16,9 +16,9 @@ The config defines:
 
 - Characters.
 - Class, role, and labels.
-- DanNet group names.
+- DanNet group names, including multiple groups such as Group 1 and Group 2.
 - KissAssist profiles per character.
-- Default profiles.
+- Default profiles or full default command lines per character or group.
 - Command templates.
 - Command sequences for multi-step actions.
 
@@ -45,7 +45,14 @@ Current scaffold behavior:
 
 ### Status Layer
 
-Live status is intentionally out of scope for the first scaffold.
+Live status is intentionally out of scope for the first scaffold, but it is the first major feature after command dispatch is proven.
+
+The first desired live status view is:
+
+- Character names.
+- Group organization where practical.
+- KissAssist running, not running, or paused.
+- Current active profile.
 
 Later versions may use:
 
@@ -62,5 +69,4 @@ Lua config -> UI rows -> command builder -> dry-run log now -> real dispatcher l
 
 ## Safety Boundaries
 
-The manager should not silently start, stop, or alter character behavior. Broad commands and dangerous actions should be visually distinct and may need confirmation before real dispatch is enabled.
-
+The manager should not silently start, stop, or alter character behavior. Broad commands and dangerous actions should be visually distinct. Confirmation prompts are not planned for the default flow because the UI needs to be fast during play, but an optional safety mode can be reconsidered later.

@@ -14,24 +14,32 @@
 - Add selected profile controls.
 - Add group-level actions.
 - Add a global dry-run toggle.
-- Add confirmation for dangerous actions.
+- Clearly label hard-stop and `/end` actions.
 - Dispatch commands through MacroQuest only after review.
 
-## Phase 2: Better Config and UX
+## Phase 2: First Status View
+
+- Show configured or discovered character names.
+- Organize characters by configured group where practical.
+- Show KissAssist running, not running, or paused if detectable.
+- Show current active KissAssist profile if detectable.
+- Avoid fake certainty when status cannot be detected.
+
+## Phase 3: Better Config and UX
 
 - Add config validation.
 - Add clearer command preview panels.
-- Add profile set concepts for zones, dungeons, bosses, or routine grinding.
+- Add per-character default command lines.
+- Add group, raid, zone, dungeon, boss, or routine-grinding profile sets.
 - Add optional per-character notes and warning labels.
 
-## Phase 3: Status
+## Phase 4: Stronger Status
 
 - Detect online/offline state where possible.
-- Detect current macro state where possible.
 - Consider a lightweight per-character Lua agent for reliable state reporting.
 - Show status without pretending uncertain data is known.
 
-## Phase 4: Integrations
+## Phase 5: Integrations
 
 - MQ2Melee controls.
 - MQ2Twist controls for bard workflows.
@@ -39,9 +47,8 @@
 - XTarget or assist target display.
 - HP, mana, endurance, and role summaries.
 
-## Phase 5: Editing
+## Phase 6: Editing
 
 - Edit profile choices from the UI.
 - Save config changes intentionally.
 - Consider controlled KissAssist INI editing only if explicitly requested.
-
