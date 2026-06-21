@@ -14,7 +14,7 @@ The main status UI stages target behavior changes first. Real per-character comm
 
 The config defines:
 
-- Display groups such as Group 1 and Group 2, used as fallback when live group membership is unavailable.
+- DanNet peer discovery used to find online characters.
 - DanNet peer groups used to discover character names.
 - DanNet control groups for future quick commands.
 - Locally saved active profile choices. An active profile is the profile this manager intends to load for a character.
@@ -36,14 +36,14 @@ The MVP will build strings from templates, show those strings in the UI where us
 
 ### Command Dispatcher
 
-The status layer uses live MacroQuest `Group` TLOs for the currently grouped characters where available. It uses `mq.cmdf()` for read-only DanNet `/dquery` probes. Normal status polling queries `Macro.Name`; `Macro.Paused` is available through an isolated debug probe. Applying staged target behavior changes uses a small queued dispatcher to send real per-character `/dex` commands without blocking ImGui rendering.
+The status layer uses live MacroQuest `Group` TLOs locally and through DanNet `/dquery` probes for each peer. Normal status polling queries `Macro.Name`, `Group.Members`, `Group.Leader.Name`, and `Group.MainAssist.Name`; `Macro.Paused` is available through an isolated debug probe. Applying staged target behavior changes uses a small queued dispatcher to send real per-character `/dex` commands without blocking ImGui rendering.
 
 The command queue uses `mq.gettime()` millisecond timing. Before scheduling a profile or loadout action, it clears pending queued commands for the affected characters and leaves a delay between `/end` and `/mac kissassist`.
 
 Current scaffold behavior:
 
 - Read-only DanNet status query dispatch.
-- Live current-group display with configured DanNet display groups as fallback.
+- Live EQ group display by group leader, plus a final `Ungrouped` bucket.
 - Per-character target behavior dropdowns that stage `No Change`, `Manual`, or a configured profile.
 - Apply dispatch: per-character end/start for profile targets, or `/end` for manual targets.
 - No group start, group pause, group resume, hard stop, cleanup, movement, attack, or pet command dispatch from the main UI.
@@ -68,7 +68,7 @@ Later versions may use:
 ## Data Flow
 
 ```text
-MacroQuest Group TLO or DanNet peer groups -> compact status table -> debug/details lower in the window
+DanNet peers -> live EQ group queries -> compact status table -> debug/details lower in the window
 Lua config -> saved profile choices and command groups -> staged target behavior -> command dispatcher
 ```
 

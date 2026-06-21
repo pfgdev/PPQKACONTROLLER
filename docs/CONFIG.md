@@ -69,9 +69,7 @@ Named DanNet groups for debug display and future command templates. The user may
 
 `display_groups`
 
-Ordered groups to show in the main status table. `peers` is the DanNet group used to list characters. `control` is the DanNet group likely used later for quick commands.
-
-The main table prefers live MacroQuest group membership. These configured display groups are used as a fallback when live group data is unavailable.
+Legacy configured display groups. The main table no longer uses this for organization; it groups known DanNet peers by live EQ group state instead. These values may remain useful later for debug or command-group experiments.
 
 `active_profiles`
 

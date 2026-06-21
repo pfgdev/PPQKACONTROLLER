@@ -64,8 +64,9 @@ Expected result in PPQ KissAssist Manager:
 - Local DanNet name appears.
 - Peer count appears.
 - Joined groups appear if DanNet reports them.
-- Your current in-game group appears first if MacroQuest exposes live group membership.
-- Configured groups show peer names as a fallback if live group membership is unavailable.
+- Live EQ groups appear by leader name, such as `Nandladin's Group`.
+- Ungrouped peers appear together in a final `Ungrouped` section.
+- Your own grouped EQ group appears first when you are grouped.
 - The top table shows `active`, `inactive`, or `unknown` after DanNet status queries return.
 
 This test uses read-only `/dquery` status probes for `Macro.Name`.

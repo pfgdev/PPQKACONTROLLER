@@ -18,6 +18,9 @@ local STATUS_QUERY_SECONDS = 8
 local STATUS_READ_DELAY_SECONDS = 2
 local STATUS_QUERIES = {
   'Macro.Name',
+  'Group.Members',
+  'Group.Leader.Name',
+  'Group.MainAssist.Name',
 }
 local PAUSED_PROBE_READ_DELAY_SECONDS = 2
 local DEFAULT_END_TO_START_DELAY_MS = 2000
@@ -37,6 +40,8 @@ local pausedProbe = {
   results = {},
 }
 local currentGroupViews
+local groupFirstSeen = {}
+local groupFirstSeenCounter = 0
 
 local ok, configOrError = pcall(require, CONFIG_MODULE)
 local config = ok and configOrError or {
@@ -128,23 +133,47 @@ local function peersForGroup(groupName)
   end, ''))
 end
 
-local function allDisplayPeers()
+local function normalizePeerName(name)
+  return string.lower(tostring(name or ''))
+end
+
+local function cleanTloName(value)
+  local text = tostring(value or '')
+  local normalized = string.lower(text)
+
+  if text == '' or normalized == 'null' or normalized == 'nil' or normalized == 'unknown' or normalized == 'unavailable' then
+    return nil
+  end
+
+  return text
+end
+
+local function allKnownPeers()
   local seen = {}
   local peers = {}
+  local localName = cleanTloName(discovery.local_name)
 
-  local groups = currentGroupViews and currentGroupViews() or {}
+  if localName then
+    seen[normalizePeerName(localName)] = true
+    table.insert(peers, localName)
+  end
 
-  for _, group in ipairs(groups) do
-    for _, peer in ipairs(group.peers or {}) do
-      if not seen[peer] then
-        seen[peer] = true
-        table.insert(peers, peer)
-      end
+  for _, peer in ipairs(discovery.peers or {}) do
+    local peerName = cleanTloName(peer)
+    local key = normalizePeerName(peerName)
+
+    if peerName and not seen[key] then
+      seen[key] = true
+      table.insert(peers, peerName)
     end
   end
 
   table.sort(peers)
   return peers
+end
+
+local function allDisplayPeers()
+  return allKnownPeers()
 end
 
 local function refreshDanNetDiscovery()
@@ -321,93 +350,23 @@ local function loadoutCharacterEntries(loadout)
   return entries
 end
 
-local function normalizePeerName(name)
-  return string.lower(tostring(name or ''))
-end
-
 local function isLocalPeer(characterName)
   return normalizePeerName(characterName) == normalizePeerName(discovery.local_name)
-end
-
-local function cleanTloName(value)
-  local text = tostring(value or '')
-  local normalized = string.lower(text)
-
-  if text == '' or normalized == 'null' or normalized == 'nil' then
-    return nil
-  end
-
-  return text
-end
-
-local function liveGroupView()
-  local memberCount = tonumber(safeTlo('Group.Members', function()
-    return mq.TLO.Group.Members()
-  end, 0)) or 0
-
-  if memberCount <= 0 then
-    return nil
-  end
-
-  local peers = {}
-  local seen = {}
-
-  for index = 0, memberCount do
-    local peer = cleanTloName(safeTlo('Group.Member[' .. tostring(index) .. '].Name', function()
-      return mq.TLO.Group.Member(index).Name()
-    end, nil))
-
-    if peer and not seen[normalizePeerName(peer)] then
-      seen[normalizePeerName(peer)] = true
-      table.insert(peers, peer)
-    end
-  end
-
-  if #peers == 0 then
-    return nil
-  end
-
-  local leader = cleanTloName(safeTlo('Group.Leader.Name', function()
-    return mq.TLO.Group.Leader.Name()
-  end, nil)) or peers[1]
-
-  local mainAssist = cleanTloName(safeTlo('Group.MainAssist.Name', function()
-    return mq.TLO.Group.MainAssist.Name()
-  end, nil))
-
-  return {
-    {
-      label = leader .. "'s Group",
-      peers = peers,
-      main_assist = mainAssist,
-      source = 'live',
-    },
-  }
-end
-
-local function configuredGroupViews()
-  local groups = {}
-
-  for _, group in ipairs(displayGroups()) do
-    table.insert(groups, {
-      label = group.label or group.peers or 'Group',
-      peers = peersForGroup(group.peers),
-      control = group.control,
-      source = 'configured',
-    })
-  end
-
-  return groups
-end
-
-currentGroupViews = function()
-  return liveGroupView() or configuredGroupViews()
 end
 
 local function readLocalMacroStatus()
   return {
     macro_name = safeTlo('Macro.Name', function()
       return mq.TLO.Macro.Name()
+    end, ''),
+    group_members = safeTlo('Group.Members', function()
+      return mq.TLO.Group.Members()
+    end, 0),
+    group_leader = safeTlo('Group.Leader.Name', function()
+      return mq.TLO.Group.Leader.Name()
+    end, ''),
+    group_main_assist = safeTlo('Group.MainAssist.Name', function()
+      return mq.TLO.Group.MainAssist.Name()
     end, ''),
     query_ok = true,
   }
@@ -424,6 +383,9 @@ local function submitPeerStatusQueries(peer)
     local cached = statusCache[peer] or {}
     local localStatus = readLocalMacroStatus()
     cached.macro_name = localStatus.macro_name
+    cached.group_members = localStatus.group_members
+    cached.group_leader = localStatus.group_leader
+    cached.group_main_assist = localStatus.group_main_assist
     cached.query_ok = localStatus.query_ok
     cached.query_pending = false
     cached.requested_at = os.time()
@@ -462,6 +424,9 @@ local function updatePeerStatusFromQueries(peer)
     local cached = statusCache[peer] or {}
     local localStatus = readLocalMacroStatus()
     cached.macro_name = localStatus.macro_name
+    cached.group_members = localStatus.group_members
+    cached.group_leader = localStatus.group_leader
+    cached.group_main_assist = localStatus.group_main_assist
     cached.query_ok = localStatus.query_ok
     cached.query_pending = false
     cached.requested_at = os.time()
@@ -483,9 +448,27 @@ local function updatePeerStatusFromQueries(peer)
   end
 
   local macroName = readPeerQuery(peer, 'Macro.Name')
+  local groupMembers = readPeerQuery(peer, 'Group.Members')
+  local groupLeader = readPeerQuery(peer, 'Group.Leader.Name')
+  local groupMainAssist = readPeerQuery(peer, 'Group.MainAssist.Name')
 
   if macroName ~= nil then
     status.macro_name = tostring(macroName)
+    status.read_at = os.time()
+  end
+
+  if groupMembers ~= nil then
+    status.group_members = tostring(groupMembers)
+    status.read_at = os.time()
+  end
+
+  if groupLeader ~= nil then
+    status.group_leader = tostring(groupLeader)
+    status.read_at = os.time()
+  end
+
+  if groupMainAssist ~= nil then
+    status.group_main_assist = tostring(groupMainAssist)
     status.read_at = os.time()
   end
 
@@ -520,6 +503,115 @@ local function statusFor(characterName)
 
   return 'unknown'
 end
+
+local function groupOrderFor(key)
+  if not groupFirstSeen[key] then
+    groupFirstSeenCounter = groupFirstSeenCounter + 1
+    groupFirstSeen[key] = groupFirstSeenCounter
+  end
+
+  return groupFirstSeen[key]
+end
+
+local function peerGroupInfo(peer)
+  local status = updatePeerStatusFromQueries(peer)
+  local memberCount = tonumber(status.group_members) or 0
+  local leader = cleanTloName(status.group_leader)
+  local mainAssist = cleanTloName(status.group_main_assist)
+
+  if memberCount > 0 and leader then
+    return {
+      key = 'group:' .. normalizePeerName(leader),
+      label = leader .. "'s Group",
+      leader = leader,
+      main_assist = mainAssist,
+      grouped = true,
+    }
+  end
+
+  return {
+    key = 'ungrouped',
+    label = 'Ungrouped',
+    grouped = false,
+  }
+end
+
+local function actualGroupViews()
+  local grouped = {}
+  local ungrouped = {
+    key = 'ungrouped',
+    label = 'Ungrouped',
+    peers = {},
+    source = 'live',
+    order = 999999,
+  }
+  local localGroupKey = nil
+
+  for _, peer in ipairs(allKnownPeers()) do
+    local info = peerGroupInfo(peer)
+
+    if info.grouped then
+      local group = grouped[info.key]
+
+      if not group then
+        group = {
+          key = info.key,
+          label = info.label,
+          leader = info.leader,
+          main_assist = info.main_assist,
+          peers = {},
+          source = 'live',
+          order = groupOrderFor(info.key),
+        }
+        grouped[info.key] = group
+      elseif info.main_assist and not group.main_assist then
+        group.main_assist = info.main_assist
+      end
+
+      table.insert(group.peers, peer)
+
+      if isLocalPeer(peer) then
+        localGroupKey = info.key
+      end
+    else
+      table.insert(ungrouped.peers, peer)
+    end
+  end
+
+  local groups = {}
+
+  for _, group in pairs(grouped) do
+    table.sort(group.peers)
+    table.insert(groups, group)
+  end
+
+  table.sort(groups, function(left, right)
+    if localGroupKey then
+      if left.key == localGroupKey and right.key ~= localGroupKey then
+        return true
+      end
+
+      if right.key == localGroupKey and left.key ~= localGroupKey then
+        return false
+      end
+    end
+
+    if left.order == right.order then
+      return left.label < right.label
+    end
+
+    return left.order < right.order
+  end)
+
+  if #ungrouped.peers > 0 then
+    table.sort(ungrouped.peers)
+    table.insert(groups, ungrouped)
+  end
+
+  return groups
+end
+
+currentGroupViews = actualGroupViews
 
 local function targetMatchesCurrent(characterName, kind, profileKey)
   local status = statusFor(characterName)
@@ -1044,11 +1136,6 @@ local function drawStatusOverview()
       ImGui.SameLine(260)
       ImGui.Text('Control: ' .. group.control)
     end
-    if group.source == 'configured' then
-      ImGui.SameLine(430)
-      ImGui.Text('fallback')
-    end
-
     drawStatusHeader()
 
     if #peers == 0 then
@@ -1245,7 +1332,7 @@ local function render()
 
       local characters = config.characters or {}
       if #characters == 0 then
-        ImGui.Text('No configured character rows. Top table uses live group membership with DanNet fallback.')
+        ImGui.Text('No configured character rows. Top table groups known DanNet peers by live EQ group state.')
       else
         for _, character in ipairs(characters) do
           drawCharacterRow(character)

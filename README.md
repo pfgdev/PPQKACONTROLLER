@@ -11,7 +11,7 @@ This repository is an initial scaffold only.
 - Documentation exists for the intended architecture, commands, config, and roadmap.
 - A sample PPQ Group 1 config exists at `lua/ppqka/config/ppq_g1.lua`.
 - A minimal ImGui script exists at `lua/ppqka/ppq_ka_manager.lua`.
-- The status UI uses live MacroQuest group membership when available, with configured DanNet groups as a fallback.
+- The status UI groups known DanNet peers by their live EQ group state, with ungrouped peers collected beneath real groups.
 - Target behavior dropdowns stage pending changes instead of firing commands immediately.
 - `Apply` sends real per-character `/dex` commands for pending profile loads or manual `/end` targets.
 - Debug controls may still show dry-run command previews.
@@ -63,7 +63,7 @@ If MacroQuest does not match by basename, use:
 1. Start MacroQuest with Lua and ImGui support loaded.
 2. Run `/lua run ppqka/ppq_ka_manager`.
 3. Confirm the `PPQ KissAssist Manager` window opens.
-4. Confirm your live group appears, or that configured DanNet groups appear as a fallback.
+4. Confirm live EQ groups appear by group leader, with ungrouped peers collected in `Ungrouped`.
 5. Change target behavior dropdowns or stage a loadout, then confirm the pending count changes.
 6. Only press `Apply` when you are ready for the staged characters to start or stop KissAssist.
 
