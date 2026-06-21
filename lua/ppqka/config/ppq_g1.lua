@@ -57,6 +57,64 @@ return {
     },
   },
 
-  active_profiles = {},
+  profiles = {
+    blanka = {
+      default = { label = 'default', ini = 'KissAssist_Blanka.ini' },
+    },
+    boomkenzie = {
+      default = { label = 'default', ini = 'KissAssist_Boomkenzie.ini' },
+    },
+    buffs = {
+      default = { label = 'default', ini = 'KissAssist_Buffs.ini' },
+    },
+    essek = {
+      default = { label = 'default', ini = 'KissAssist_Essek.ini' },
+    },
+    grog = {
+      default = { label = 'default', ini = 'KissAssist_Grog.ini' },
+    },
+    kelthuzad = {
+      default = { label = 'default', ini = 'KissAssist_Kelthuzad.ini' },
+    },
+    lagspike = {
+      default = { label = 'default', ini = 'KissAssist_Lagspike.ini' },
+    },
+    lulu = {
+      default = { label = 'default', ini = 'KissAssist_Lulu.ini' },
+    },
+    morrigan = {
+      default = { label = 'default', ini = 'KissAssist_Morrigan.ini' },
+    },
+    nandarie = {
+      default = { label = 'default', ini = 'KissAssist_Nandarie.ini' },
+    },
+    nandladin = {
+      default = { label = 'default', ini = 'KissAssist_Nandladin.ini' },
+    },
+    nodance = {
+      default = { label = 'default', ini = 'KissAssist_Nodance.ini' },
+    },
+    shadow = {
+      default = { label = 'default', ini = 'KissAssist_Shadow.ini' },
+      solo = { label = 'solo', ini = 'KissAssist_Shadow_Solo.ini' },
+    },
+  },
+
+  active_profiles = {
+    blanka = 'default',
+    boomkenzie = 'default',
+    buffs = 'default',
+    essek = 'default',
+    grog = 'default',
+    kelthuzad = 'default',
+    lagspike = 'default',
+    lulu = 'default',
+    morrigan = 'default',
+    nandarie = 'default',
+    nandladin = 'default',
+    nodance = 'default',
+    shadow = 'default',
+  },
+
   characters = {},
 }

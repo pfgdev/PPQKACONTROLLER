@@ -173,8 +173,29 @@ local function formatList(items)
 end
 
 local function savedProfileFor(characterName)
-  local profiles = config.active_profiles or {}
-  return profiles[characterName] or profiles[string.lower(characterName or '')] or 'unknown'
+  local characterKey = string.lower(characterName or '')
+  local activeProfiles = config.active_profiles or {}
+  local profileKey = activeProfiles[characterName] or activeProfiles[characterKey]
+
+  if not profileKey then
+    return 'unknown'
+  end
+
+  local profiles = config.profiles or {}
+  local characterProfiles = profiles[characterName] or profiles[characterKey] or {}
+  local profile = characterProfiles[profileKey]
+
+  if type(profile) == 'table' then
+    local label = profile.label or profileKey
+    local ini = profile.ini or 'unknown'
+    return string.format('%s (%s)', label, ini)
+  end
+
+  if type(profile) == 'string' then
+    return string.format('%s (%s)', profileKey, profile)
+  end
+
+  return tostring(profileKey)
 end
 
 local function normalizePeerName(name)

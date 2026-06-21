@@ -18,7 +18,15 @@ return {
     group2 = 'g2',
     group2kiss = 'g2kiss',
   },
-  active_profiles = {},
+  profiles = {
+    shadow = {
+      default = { label = 'default', ini = 'KissAssist_Shadow.ini' },
+      solo = { label = 'solo', ini = 'KissAssist_Shadow_Solo.ini' },
+    },
+  },
+  active_profiles = {
+    shadow = 'default',
+  },
   characters = {},
 }
 ```
@@ -47,7 +55,11 @@ Ordered groups to show in the main status table. `peers` is the DanNet group use
 
 `active_profiles`
 
-Optional local saved profile state by character name. This will matter more once the UI can choose a profile and launch KissAssist.
+Local saved active profile key by character name. This means "the profile this manager intends to load for that character," not necessarily a live value detected from KissAssist.
+
+`profiles`
+
+Profile choices by character name. Each profile has a key, display label, and KissAssist INI filename.
 
 `characters`
 
@@ -74,6 +86,29 @@ DanNet group used to discover visible characters for the table, such as `g1`.
 `control`
 
 DanNet group intended for future quick commands, such as `g1kiss`.
+
+## Profile Fields
+
+Profile choices are keyed by lower-case character name:
+
+```lua
+profiles = {
+  shadow = {
+    default = { label = 'default', ini = 'KissAssist_Shadow.ini' },
+    solo = { label = 'solo', ini = 'KissAssist_Shadow_Solo.ini' },
+  },
+}
+```
+
+The active profile points to one of those profile keys:
+
+```lua
+active_profiles = {
+  shadow = 'default',
+}
+```
+
+Later, when the UI can launch KissAssist, this active profile should decide which INI is loaded.
 
 ## Character Fields
 

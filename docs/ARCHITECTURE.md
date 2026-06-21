@@ -17,7 +17,7 @@ The config defines:
 - Display groups such as Group 1 and Group 2.
 - DanNet peer groups used to discover character names.
 - DanNet control groups for future quick commands.
-- Locally saved active profile choices when live profile detection is not available.
+- Locally saved active profile choices. An active profile is the profile this manager intends to load for a character.
 - Default profiles or full default command lines per character or group.
 - Command templates.
 - Command sequences for multi-step actions.

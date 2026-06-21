@@ -8,3 +8,4 @@
 - Added read-only DanNet peer discovery.
 - Moved the main UI toward a compact group status table.
 - Added read-only DanNet status probes for `Macro.Name` and `Macro.Paused`.
+- Added configured active profile selections and labels.
