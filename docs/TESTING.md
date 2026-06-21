@@ -70,7 +70,7 @@ Expected result in PPQ KissAssist Manager:
 - Your own grouped EQ group appears first when you are grouped.
 - The top table shows manual/inactive, active profile, paused profile, or unknown/checking after DanNet status queries return.
 
-This test uses a per-client reporter. The manager starts `ppqka/ppq_ka_reporter` on known DanNet peers, then reads each peer's `PPQKA_Status` variable with read-only `/dquery`.
+This test uses a per-client reporter. The manager starts `ppqka/ppq_ka_reporter` on known DanNet peers, observes each peer's `PPQKA_Status` variable through DanNet, and keeps read-only `/dquery` polling as a fallback.
 
 If a reporter does not show as `seen`, make sure `ppq_ka_reporter.lua` was copied into that client's MacroQuest `lua/ppqka/` folder. You can manually start it on a client with:
 

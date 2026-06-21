@@ -53,6 +53,7 @@ local currentGroupViews
 local groupFirstSeen = {}
 local groupFirstSeenCounter = 0
 local reporterStarted = {}
+local statusObservers = {}
 
 local ok, configOrError = pcall(require, CONFIG_MODULE)
 local config = ok and configOrError or {
@@ -572,6 +573,43 @@ local function readPeerQuery(peer, query)
   end, nil)
 end
 
+local function isStatusObserverSet(peer)
+  return safeTlo('DanNet[' .. tostring(peer) .. '].OSet[' .. REPORTER_VARIABLE .. ']', function()
+    return mq.TLO.DanNet(peer).OSet(REPORTER_VARIABLE)()
+  end, false) == true
+end
+
+local function ensureStatusObserverForPeer(peer)
+  if isLocalPeer(peer) then
+    return
+  end
+
+  local peerKey = normalizePeerName(peer)
+
+  if statusObservers[peerKey] and isStatusObserverSet(peer) then
+    return
+  end
+
+  local success, errorMessage = pcall(function()
+    if not isStatusObserverSet(peer) then
+      mq.cmdf('/dobserve %s -q "%s"', peer, REPORTER_VARIABLE)
+    end
+  end)
+
+  if success then
+    statusObservers[peerKey] = true
+  else
+    statusCache[peer] = statusCache[peer] or {}
+    statusCache[peer].observer_error = tostring(errorMessage)
+  end
+end
+
+local function readPeerObservedStatus(peer)
+  return safeTlo('DanNet[' .. tostring(peer) .. '].O[' .. REPORTER_VARIABLE .. ']', function()
+    return mq.TLO.DanNet(peer).O(REPORTER_VARIABLE)()
+  end, nil)
+end
+
 local function readLocalReporterPayload()
   return safeTlo(REPORTER_VARIABLE, function()
     return mq.parse('${' .. REPORTER_VARIABLE .. '}')
@@ -661,6 +699,7 @@ end
 local function startReporters()
   for _, peer in ipairs(allKnownPeers()) do
     startReporterForPeer(peer)
+    ensureStatusObserverForPeer(peer)
   end
 end
 
@@ -690,6 +729,7 @@ local function submitPeerStatusQueries(peer)
   end
 
   local cached = statusCache[peer] or {}
+  ensureStatusObserverForPeer(peer)
 
   if cached.query_pending and cached.read_after and os.time() < cached.read_after then
     return
@@ -703,7 +743,7 @@ local function submitPeerStatusQueries(peer)
 
   for _, query in ipairs(STATUS_QUERIES) do
     local success, errorMessage = pcall(function()
-      mq.cmdf('/dquery %s -q %s -t 1000', peer, query)
+      mq.cmdf('/dquery %s -q "%s" -t 1000', peer, query)
     end)
 
     if not success then
@@ -750,6 +790,21 @@ local function updatePeerStatusFromQueries(peer)
   end
 
   local status = statusCache[peer] or {}
+  ensureStatusObserverForPeer(peer)
+
+  local observedPayload = readPeerObservedStatus(peer)
+
+  if cleanReportedText(observedPayload) then
+    applyReporterPayload(status, observedPayload)
+
+    if status.reporter_seen and not status.reporter_stale then
+      status.query_pending = false
+      status.read_after = nil
+      status.query_ok = true
+      statusCache[peer] = status
+      return status
+    end
+  end
 
   if not status.requested_at then
     submitPeerStatusQueries(peer)
@@ -1861,6 +1916,9 @@ local function drawDanNetDiscovery()
     ImGui.Text('Probe read: ' .. formatTimestamp(probe.read_at))
     ImGui.SameLine(420)
     ImGui.Text('Reporter: ' .. (status.reporter_seen and ('seen ' .. formatTimestamp(status.reporter_read_at)) or 'not seen'))
+    ImGui.SameLine(620)
+    ImGui.Text('Observer: ' .. tostring(isLocalPeer(peer) or isStatusObserverSet(peer)))
+
     if status.reporter_stale then
       ImGui.Text('Reporter stale: ' .. tostring(status.reporter_age or 'unknown') .. 's old')
     end
@@ -1880,6 +1938,8 @@ local function drawDanNetDiscovery()
 
     if probe.error then
       ImGui.TextWrapped('Paused probe error: ' .. probe.error)
+    elseif status.observer_error then
+      ImGui.TextWrapped('Observer error: ' .. status.observer_error)
     elseif status.query_error then
       ImGui.TextWrapped('Query error: ' .. status.query_error)
     end

@@ -42,7 +42,7 @@ The MVP will build strings from templates, show those strings in the UI where us
 
 ### Command Dispatcher
 
-The status layer reads each client's `PPQKA_Status` through DanNet `/dquery`. The payload includes the client's macro state, best-effort KissAssist INI, group leader, main assist, and group roster. Applying staged target behavior changes uses a small queued dispatcher to send real per-character `/dex` commands without blocking ImGui rendering.
+The status layer observes each client's `PPQKA_Status` through DanNet and keeps `/dquery` polling as a fallback. The payload includes the client's macro state, best-effort KissAssist INI, group leader, main assist, and group roster. Applying staged target behavior changes uses a small queued dispatcher to send real per-character `/dex` commands without blocking ImGui rendering.
 
 The command queue uses `mq.gettime()` millisecond timing. Before scheduling a profile or loadout action, it clears pending queued commands for the affected characters and leaves a delay between `/end` and `/mac kissassist`.
 
