@@ -1,0 +1,117 @@
+return {
+  version = 1,
+  name = 'PPQ Group 1',
+  assist = 'Nandladin',
+  dry_run = true,
+
+  groups = {
+    all = 'g1',
+    kiss = 'g1kiss',
+    manual = 'g1manual',
+    melee = 'g1melee',
+    heal = 'g1heal',
+    cast = 'g1cast',
+    cc = 'g1cc',
+  },
+
+  command_templates = {
+    character_start_default = '/dex {character} /mac kissassist assist ma {assist}',
+    character_start_profile = '/dex {character} /mac kissassist ini {profile} assist ma {assist}',
+    character_pause = '/dex {character} /mqp on',
+    character_resume = '/dex {character} /mqp off',
+    character_end = '/dex {character} /end',
+    group_start = '/dgex {group} /mac kissassist assist ma {assist}',
+    group_pause = '/dgex {group} /mqp on',
+    group_resume = '/dgex {group} /mqp off',
+    group_end = '/dgex {group} /end',
+  },
+
+  command_sequences = {
+    character_cleanup = {
+      '/dex {character} /attack off',
+      '/dex {character} /stick off',
+      '/dex {character} /nav stop',
+      '/dex {character} /pet back off',
+    },
+    group_hard_stop = {
+      '/dgex {group} /end',
+      '/dgex {group} /attack off',
+      '/dgex {group} /stick off',
+      '/dgex {group} /nav stop',
+      '/dgex {group} /pet back off',
+    },
+  },
+
+  characters = {
+    {
+      name = 'Nandladin',
+      class = 'Warrior',
+      role = 'Manual tank / main assist',
+      manual = true,
+      kiss_enabled = false,
+      default_profile = nil,
+      profiles = {},
+      notes = 'Main driver and tank. Not normally controlled by KissAssist.',
+    },
+    {
+      name = 'Nodance',
+      class = 'Bard',
+      role = 'Manual puller / songs',
+      manual = true,
+      kiss_enabled = false,
+      default_profile = nil,
+      profiles = {},
+      notes = 'May use MQ2Twist separately. Not normally KissAssist controlled.',
+    },
+    {
+      name = 'Shadow',
+      class = 'Ranger',
+      role = 'Assist DPS',
+      manual = false,
+      kiss_enabled = true,
+      default_profile = 'KissAssist_Shadow.ini',
+      profiles = {
+        { label = 'Default DPS', ini = 'KissAssist_Shadow.ini' },
+      },
+      notes = 'Assist DPS profile.',
+    },
+    {
+      name = 'Nandarie',
+      class = 'Enchanter',
+      role = 'Buffs / DPS / CC',
+      manual = false,
+      kiss_enabled = true,
+      default_profile = 'KissAssist_Nandarie.ini',
+      profiles = {
+        { label = 'Default', ini = 'KissAssist_Nandarie.ini' },
+        { label = 'CC / Mez', ini = 'KissAssist_Nandarie_CC.ini' },
+      },
+      notes = 'May be paused for manual crowd control.',
+    },
+    {
+      name = 'Lagspike',
+      class = 'Cleric',
+      role = 'Primary healer',
+      manual = false,
+      kiss_enabled = true,
+      default_profile = 'KissAssist_Lagspike.ini',
+      profiles = {
+        { label = 'Default heals', ini = 'KissAssist_Lagspike.ini' },
+      },
+      notes = 'Heals, HoT on tank, Mark of Karn, hammer pet.',
+    },
+    {
+      name = 'DruidCharacter',
+      class = 'Druid',
+      role = 'Backup heals / utility / DPS',
+      manual = false,
+      kiss_enabled = true,
+      default_profile = 'KissAssist_DruidCharacter.ini',
+      profiles = {
+        { label = 'Default utility', ini = 'KissAssist_DruidCharacter.ini' },
+      },
+      notes = 'Rename this entry once the druid character name is confirmed.',
+    },
+  },
+}
+
