@@ -1493,7 +1493,7 @@ local function stageLoadout(loadout)
   end
 
   if loadout.kind == 'none' then
-    clearTargetSelection()
+    clearPendingChanges()
     return 0
   end
 
@@ -1534,6 +1534,17 @@ stageUnloadLoadout = function(loadout)
 
   logAction('STAGE', 'Staged ' .. tostring(stagedCount) .. ' manual targets from ' .. tostring((loadout and loadout.label) or 'Unload All'))
   return stagedCount
+end
+
+local function selectTargetLoadout(loadout)
+  selectedLoadoutKey = (loadout and loadout.key) or LOADOUT_NONE_KEY
+  clearPendingChanges()
+
+  if not loadout or loadout.kind == 'none' then
+    return 0
+  end
+
+  return stageLoadout(loadout)
 end
 
 local function applyPendingChanges()
@@ -1734,15 +1745,10 @@ local function drawLoadoutControls()
   if ImGui.BeginCombo('##loadout_selector', loadout.label or loadout.key or 'unknown') then
     for _, entry in ipairs(entries) do
       local isSelected = entry.key == (loadout and loadout.key)
+      local optionLabel = tostring(entry.label or entry.key or 'unknown') .. '##loadout_option_' .. tostring(entry.key)
 
-      if ImGui.Selectable(entry.label or entry.key, isSelected) then
-        selectedLoadoutKey = entry.key
-        clearPendingChanges()
-        selectedLoadoutKey = entry.key
-
-        if entry.kind ~= 'none' then
-          stageLoadout(entry)
-        end
+      if ImGui.Selectable(optionLabel, isSelected) then
+        selectTargetLoadout(entry)
       end
 
       if isSelected then
