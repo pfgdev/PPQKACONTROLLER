@@ -467,14 +467,7 @@ local function profileForIni(characterName, ini)
   }
 end
 
-local function loadoutEntries()
-  local entries = {
-    {
-      key = LOADOUT_NONE_KEY,
-      label = 'No Target Selected',
-      kind = 'none',
-    },
-  }
+local function savedLoadoutEntries()
   local configuredEntries = {}
 
   for _, loadout in ipairs(config.loadouts or {}) do
@@ -485,7 +478,19 @@ local function loadoutEntries()
     return (left.label or left.key or '') < (right.label or right.key or '')
   end)
 
-  for _, loadout in ipairs(configuredEntries) do
+  return configuredEntries
+end
+
+local function loadoutEntries()
+  local entries = {
+    {
+      key = LOADOUT_NONE_KEY,
+      label = 'No Target Selected',
+      kind = 'none',
+    },
+  }
+
+  for _, loadout in ipairs(savedLoadoutEntries()) do
     table.insert(entries, loadout)
   end
 
@@ -1579,10 +1584,134 @@ local function changeCountText(count)
   return tostring(count) .. ' Changes'
 end
 
+local drawBehaviorText
+
+local function allDisplayedPeersManual()
+  local peers = allDisplayPeers()
+
+  if #peers == 0 then
+    return nil
+  end
+
+  for _, peer in ipairs(peers) do
+    local currentStatus = statusFor(peer)
+
+    if currentStatus == 'checking' or currentStatus == 'unknown' then
+      return nil
+    end
+
+    if currentStatus ~= 'inactive' then
+      return false
+    end
+  end
+
+  return true
+end
+
+local function loadoutMatchesCurrent(loadout)
+  local targetProfiles = {}
+  local seenPeers = {}
+  local peers = allDisplayPeers()
+
+  for characterName, profileKey in pairs((loadout and loadout.characters) or {}) do
+    targetProfiles[characterConfigKey(characterName)] = profileKey
+  end
+
+  for _, peer in ipairs(peers) do
+    seenPeers[characterConfigKey(peer)] = true
+  end
+
+  for characterKey in pairs(targetProfiles) do
+    if not seenPeers[characterKey] then
+      return false
+    end
+  end
+
+  for _, peer in ipairs(peers) do
+    local peerKey = characterConfigKey(peer)
+    local expectedProfile = targetProfiles[peerKey]
+    local currentStatus = statusFor(peer)
+
+    if currentStatus == 'checking' or currentStatus == 'unknown' then
+      return nil
+    end
+
+    if currentStatus == 'inactive' then
+      if expectedProfile then
+        return false
+      end
+    elseif currentStatus == 'active' or currentStatus == 'paused' then
+      if not expectedProfile then
+        return false
+      end
+
+      local currentProfile = reportedProfileKey(peer)
+
+      if not currentProfile then
+        return nil
+      end
+
+      if currentProfile ~= expectedProfile then
+        return false
+      end
+    else
+      return false
+    end
+  end
+
+  return true
+end
+
+local function currentLoadoutLabel()
+  local manualState = allDisplayedPeersManual()
+
+  if manualState == true then
+    return 'Manual / Unloaded', 'manual'
+  elseif manualState == nil then
+    return 'Checking...', 'checking'
+  end
+
+  local sawChecking = false
+
+  for _, loadout in ipairs(savedLoadoutEntries()) do
+    local matches = loadoutMatchesCurrent(loadout)
+
+    if matches == true then
+      return loadout.label or loadout.key or 'Saved Loadout', 'saved'
+    elseif matches == nil then
+      sawChecking = true
+    end
+  end
+
+  if sawChecking then
+    return 'Checking...', 'checking'
+  end
+
+  return 'Custom / Unsaved', 'custom'
+end
+
+local function drawCurrentLoadoutText()
+  local label, state = currentLoadoutLabel()
+
+  if state == 'saved' then
+    drawBehaviorText(label, 'run')
+  elseif state == 'checking' then
+    drawBehaviorText(label, 'checking')
+  elseif state == 'manual' then
+    drawBehaviorText(label, 'manual')
+  else
+    drawBehaviorText(label, 'unknown')
+  end
+end
+
 local function drawLoadoutControls()
   local entries = loadoutEntries()
   local loadout = selectedLoadout()
   local changeCount = pendingChangeCount()
+
+  ImGui.Text('Current Loadout')
+  ImGui.SameLine(120)
+  drawCurrentLoadoutText()
 
   ImGui.Text('Target Loadout')
   ImGui.SameLine(120)
@@ -1661,7 +1790,7 @@ local function behaviorTextColor(state)
   return 1.0, 1.0, 1.0, 1.0
 end
 
-local function drawBehaviorText(text, state)
+drawBehaviorText = function(text, state)
   local red, green, blue, alpha = behaviorTextColor(state)
   ImGui.TextColored(red, green, blue, alpha, text)
 end
