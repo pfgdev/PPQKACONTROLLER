@@ -1161,6 +1161,10 @@ local function reportedProfileKey(characterName)
   return reportedProfile and reportedProfile.key
 end
 
+local function detectedProfileKey(characterName)
+  return reportedProfileKey(characterName) or selectedProfileKeyFor(characterName)
+end
+
 local function targetConfirmedByReporter(characterName, kind, profileKey, startedAt)
   local status = statusFor(characterName)
   local cached = statusCache[characterName] or {}
@@ -1645,7 +1649,7 @@ local function loadoutMatchesCurrent(loadout)
         return false
       end
 
-      local currentProfile = reportedProfileKey(peer)
+      local currentProfile = detectedProfileKey(peer)
 
       if not currentProfile then
         return nil
@@ -1733,11 +1737,7 @@ local function drawLoadoutControls()
         selectedLoadoutKey = entry.key
 
         if entry.kind ~= 'none' then
-          local stagedCount = stageLoadout(entry)
-
-          if stagedCount == 0 then
-            selectedLoadoutKey = LOADOUT_NONE_KEY
-          end
+          stageLoadout(entry)
         end
       end
 
