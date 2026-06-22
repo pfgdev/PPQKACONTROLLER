@@ -36,12 +36,12 @@ return {
   },
 
   command_templates = {
-    character_start_default = '/dex {character} /mac kissassist assist ma {assist}',
-    character_start_profile = '/dex {character} /mac kissassist ini {profile} assist ma {assist}',
+    character_start_default = '/dex {character} /mac kissassist assist {assist}',
+    character_start_profile = '/dex {character} /mac kissassist assist {assist} ini {profile}',
     character_pause = '/dex {character} /mqp on',
     character_resume = '/dex {character} /mqp off',
     character_end = '/dex {character} /end',
-    group_start = '/dgex {group} /mac kissassist assist ma {assist}',
+    group_start = '/dgex {group} /mac kissassist assist {assist}',
     group_pause = '/dgex {group} /mqp on',
     group_resume = '/dgex {group} /mqp off',
     group_end = '/dgex {group} /end',
@@ -120,6 +120,22 @@ return {
     nandladin = 'default',
     nodance = 'default',
     shadow = 'default',
+  },
+
+  active_assists = {
+    blanka = 'Nandladin',
+    boomkenzie = 'Nandladin',
+    buffs = 'Nandladin',
+    essek = 'Nandladin',
+    grog = 'Nandladin',
+    kelthuzad = 'Nandladin',
+    lagspike = 'Nandladin',
+    lulu = 'Nandladin',
+    morrigan = 'Nandladin',
+    nandarie = 'Nandladin',
+    nandladin = 'Nandladin',
+    nodance = 'Nandladin',
+    shadow = 'Nandladin',
   },
 
   character_meta = {

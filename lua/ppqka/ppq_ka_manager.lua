@@ -77,6 +77,7 @@ local config = ok and configOrError or {
   groups = {},
   display_groups = {},
   active_profiles = {},
+  active_assists = {},
   loadouts = {},
   character_meta = {},
   command_timing = {},
@@ -391,10 +392,12 @@ local function profileEntriesFor(characterName)
   for key, profile in pairs(characterProfiles) do
     local label = key
     local ini = ''
+    local assist = nil
 
     if type(profile) == 'table' then
       label = profile.label or key
       ini = profile.ini or ''
+      assist = profile.assist
     elseif type(profile) == 'string' then
       ini = profile
     end
@@ -403,6 +406,7 @@ local function profileEntriesFor(characterName)
       key = key,
       label = label,
       ini = ini,
+      assist = assist,
     })
   end
 
@@ -417,6 +421,20 @@ local function selectedProfileKeyFor(characterName)
   local characterKey = characterConfigKey(characterName)
   local activeProfiles = config.active_profiles or {}
   return activeProfiles[characterName] or activeProfiles[characterKey]
+end
+
+local function activeAssistFor(characterName)
+  local characterKey = characterConfigKey(characterName)
+  local activeAssists = config.active_assists or {}
+  return activeAssists[characterName] or activeAssists[characterKey]
+end
+
+local function sameAssist(left, right)
+  if not left or left == '' or not right or right == '' then
+    return false
+  end
+
+  return string.lower(tostring(left)) == string.lower(tostring(right))
 end
 
 local function profileForKey(characterName, profileKey)
@@ -437,6 +455,7 @@ local function profileForKey(characterName, profileKey)
       key = profileKey,
       label = profile.label or profileKey,
       ini = profile.ini or 'unknown',
+      assist = profile.assist,
     }
   end
 
@@ -536,10 +555,19 @@ end
 local function loadoutCharacterEntries(loadout)
   local entries = {}
 
-  for characterName, profileKey in pairs((loadout and loadout.characters) or {}) do
+  for characterName, target in pairs((loadout and loadout.characters) or {}) do
+    local profileKey = target
+    local assist = nil
+
+    if type(target) == 'table' then
+      profileKey = target.profile or target.key or target[1]
+      assist = target.assist
+    end
+
     table.insert(entries, {
       character = characterName,
       profile = profileKey,
+      assist = assist,
     })
   end
 
@@ -548,6 +576,11 @@ local function loadoutCharacterEntries(loadout)
   end)
 
   return entries
+end
+
+local function assistForTarget(characterName, profileKey, loadout, entryAssist)
+  local profile = profileForKey(characterName, profileKey)
+  return entryAssist or profile.assist or (loadout and loadout.assist) or config.assist
 end
 
 local function isLocalPeer(characterName)
@@ -1118,8 +1151,9 @@ end
 
 currentGroupViews = actualGroupViews
 
-local function targetMatchesCurrent(characterName, kind, profileKey)
+local function targetMatchesCurrent(characterName, kind, profileKey, assist)
   local status = statusFor(characterName)
+  local activeAssist = activeAssistFor(characterName)
 
   if status == 'inactive' and kind == 'manual' then
     return true
@@ -1129,11 +1163,19 @@ local function targetMatchesCurrent(characterName, kind, profileKey)
     local reportedProfile = profileForIni(characterName, (statusCache[characterName] or {}).kiss_ini)
 
     if reportedProfile and reportedProfile.key == profileKey then
+      if activeAssist and assist and not sameAssist(activeAssist, assist) then
+        return false
+      end
+
       return true
     end
   end
 
   if (status == 'active' or status == 'paused') and kind == 'profile' and selectedProfileKeyFor(characterName) == profileKey then
+    if activeAssist and assist and not sameAssist(activeAssist, assist) then
+      return false
+    end
+
     return true
   end
 
@@ -1435,8 +1477,16 @@ local function loadCharacterProfile(characterName, profile, assist, endDelayMs, 
     return
   end
 
+  local templates = config.command_templates or {}
+  local startTemplate = templates.character_start_profile or '/dex {character} /mac kissassist assist {assist} ini {profile}'
+  local startCommand = expandTemplate(startTemplate, {
+    assist = assist or config.assist or '',
+    character = characterName,
+    profile = profile.ini,
+  })
+
   enqueueCommand(string.format('/dex %s /end', characterName), endDelayMs, characterName)
-  enqueueCommand(string.format('/dex %s /mac kissassist ini %s assist ma %s', characterName, profile.ini, assist or config.assist or ''), startDelayMs, characterName)
+  enqueueCommand(startCommand, startDelayMs, characterName)
 end
 
 local function pendingChangeFor(characterName)
@@ -1493,7 +1543,7 @@ local function stageManualTarget(characterName)
 end
 
 local function stageProfileTarget(characterName, profileKey, assist)
-  if targetMatchesCurrent(characterName, 'profile', profileKey) then
+  if targetMatchesCurrent(characterName, 'profile', profileKey, assist) then
     clearPendingChange(characterName)
     return false
   end
@@ -1530,7 +1580,7 @@ local function stageLoadout(loadout)
   local stagedCount = 0
 
   for _, entry in ipairs(entries) do
-    if stageProfileTarget(entry.character, entry.profile, loadout.assist or config.assist) then
+    if stageProfileTarget(entry.character, entry.profile, assistForTarget(entry.character, entry.profile, loadout, entry.assist)) then
       stagedCount = stagedCount + 1
     end
   end
@@ -1604,12 +1654,17 @@ local function applyPendingChanges()
 
   for index, change in ipairs(entries) do
     local endDelayMs = (index - 1) * endSpacingMs
+    local characterKey = characterConfigKey(change.character)
 
     if change.kind == 'manual' then
       markInFlightChange(change)
+      config.active_assists = config.active_assists or {}
+      config.active_assists[characterKey] = nil
       enqueueCommand(string.format('/dex %s /end', change.character), endDelayMs, change.character)
     elseif change.kind == 'profile' then
-      config.active_profiles[characterConfigKey(change.character)] = change.profile
+      config.active_profiles[characterKey] = change.profile
+      config.active_assists = config.active_assists or {}
+      config.active_assists[characterKey] = change.assist or config.assist
       markInFlightChange(change)
       loadCharacterProfile(
         change.character,
@@ -2002,10 +2057,12 @@ local function drawTargetDropdown(characterName)
       local _, profileClicked = ImGui.Selectable(entry.label, isSelected)
 
       if profileClicked then
-        if targetMatchesCurrent(characterName, 'profile', entry.key) then
+        local assist = assistForTarget(characterName, entry.key, selectedLoadout())
+
+        if targetMatchesCurrent(characterName, 'profile', entry.key, assist) then
           clearPendingChange(characterName)
         else
-          stageProfileTarget(characterName, entry.key, (selectedLoadout() and selectedLoadout().assist) or config.assist)
+          stageProfileTarget(characterName, entry.key, assist)
         end
 
         markTargetModified()

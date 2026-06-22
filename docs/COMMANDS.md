@@ -42,10 +42,12 @@ Choosing a profile target does not immediately run a command. When `Apply` is cl
 Then, after a short delay:
 
 ```text
-/dex {character} /mac kissassist ini {profile} assist ma {assist}
+/dex {character} /mac kissassist assist {assist} ini {profile}
 ```
 
 This restart flow is intentional for now because it is predictable and avoids relying on mid-macro profile swapping.
+
+The assist token is resolved from the most specific configured value available: loadout character entry, profile, loadout, then top-level config.
 
 Choosing `Manual` does not immediately run a command. When `Apply` is clicked, each staged manual target queues:
 
@@ -61,7 +63,7 @@ Loadouts use per-character `/dex` commands, not group-wide KissAssist starts, be
 
 ```text
 /dex {character} /end
-/dex {character} /mac kissassist ini {profile} assist ma {assist}
+/dex {character} /mac kissassist assist {assist} ini {profile}
 ```
 
 `Stage Unload` stages manual targets for each character in the selected loadout. `Apply` then sends:
@@ -81,13 +83,13 @@ These control commands are planned for broader buttons later. Some may appear in
 Start KissAssist with the default assist:
 
 ```text
-/dex {character} /mac kissassist assist ma {assist}
+/dex {character} /mac kissassist assist {assist}
 ```
 
 Start KissAssist with a specific INI profile:
 
 ```text
-/dex {character} /mac kissassist ini {profile} assist ma {assist}
+/dex {character} /mac kissassist assist {assist} ini {profile}
 ```
 
 Pause a running macro:
@@ -122,7 +124,7 @@ Character cleanup:
 Start KissAssist on a DanNet group:
 
 ```text
-/dgex {group} /mac kissassist assist ma {assist}
+/dgex {group} /mac kissassist assist {assist}
 ```
 
 Pause a DanNet group:

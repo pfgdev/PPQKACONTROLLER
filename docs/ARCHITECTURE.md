@@ -35,7 +35,7 @@ The manager attempts to start the reporter on all known DanNet peers with `/lua 
 The command builder expands command templates such as:
 
 ```text
-/dex {character} /mac kissassist ini {profile} assist ma {assist}
+/dex {character} /mac kissassist assist {assist} ini {profile}
 ```
 
 The MVP will build strings from templates, show those strings in the UI where useful, and dispatch them only from explicit button presses.
