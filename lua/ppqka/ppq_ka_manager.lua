@@ -1874,17 +1874,17 @@ drawBehaviorText = function(text, state)
 end
 
 local function alignTextToRowHeight(rowHeight)
-  local offset = (rowHeight - ImGui.GetFrameHeight()) * 0.5
+  local cellPadding = ImGui.GetStyle().CellPadding
+  local offset = ((rowHeight - ImGui.GetTextLineHeight()) * 0.5) - (cellPadding and cellPadding.y or 0)
 
   if offset > 0 then
     ImGui.SetCursorPosY(ImGui.GetCursorPosY() + offset)
   end
-
-  ImGui.AlignTextToFramePadding()
 end
 
 local function alignFrameToRowHeight(rowHeight)
-  local offset = (rowHeight - ImGui.GetFrameHeight()) * 0.5
+  local cellPadding = ImGui.GetStyle().CellPadding
+  local offset = ((rowHeight - ImGui.GetFrameHeight()) * 0.5) - (cellPadding and cellPadding.y or 0)
 
   if offset > 0 then
     ImGui.SetCursorPosY(ImGui.GetCursorPosY() + offset)
