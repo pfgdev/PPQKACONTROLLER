@@ -48,6 +48,8 @@ local LOADOUT_MANAGE_WIDTH = 244.0
 local LOADOUT_CLEAR_WIDTH = 64.0
 local LOADOUT_APPLY_WIDTH = 172.0
 local GROUP_HEADER_HEIGHT = 30.0
+local ROW_TEXT_Y_NUDGE = -2.0
+local ROW_FRAME_Y_NUDGE = 0.0
 local discovery = {
   local_name = 'unknown',
   version = 'unknown',
@@ -1875,7 +1877,7 @@ end
 
 local function alignTextToRowHeight(rowHeight)
   local cellPadding = ImGui.GetStyle().CellPadding
-  local offset = ((rowHeight - ImGui.GetTextLineHeight()) * 0.5) - (cellPadding and cellPadding.y or 0)
+  local offset = ((rowHeight - ImGui.GetTextLineHeight()) * 0.5) - (cellPadding and cellPadding.y or 0) + ROW_TEXT_Y_NUDGE
 
   if offset > 0 then
     ImGui.SetCursorPosY(ImGui.GetCursorPosY() + offset)
@@ -1884,7 +1886,7 @@ end
 
 local function alignFrameToRowHeight(rowHeight)
   local cellPadding = ImGui.GetStyle().CellPadding
-  local offset = ((rowHeight - ImGui.GetFrameHeight()) * 0.5) - (cellPadding and cellPadding.y or 0)
+  local offset = ((rowHeight - ImGui.GetFrameHeight()) * 0.5) - (cellPadding and cellPadding.y or 0) + ROW_FRAME_Y_NUDGE
 
   if offset > 0 then
     ImGui.SetCursorPosY(ImGui.GetCursorPosY() + offset)
