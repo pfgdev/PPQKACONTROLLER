@@ -32,6 +32,9 @@ return {
   active_profiles = {
     shadow = 'default',
   },
+  character_meta = {
+    shadow = { class = 'RNG', class_color = '#b6e07a' },
+  },
   loadouts = {
     {
       key = 'g1_normal',
@@ -84,6 +87,10 @@ Profile choices by character name. Each profile has a key, display label, and Ki
 `characters`
 
 Optional legacy/configured character definitions. The main status table should not depend on this list.
+
+`character_meta`
+
+Optional display metadata keyed by lower-case character name. This is used for visual polish such as class chips and should not be required for core behavior.
 
 `loadouts`
 
@@ -189,6 +196,25 @@ Small stagger between `/end` commands when applying or unloading a loadout.
 Small stagger between `/mac kissassist` start commands when loading multiple characters.
 
 ## Character Fields
+
+`character_meta`
+
+Optional display metadata for live status rows:
+
+```lua
+character_meta = {
+  nandladin = { class = 'WAR', class_color = '#d9c18e' },
+  nodance = { class = 'BRD', class_color = '#f2a7ef' },
+}
+```
+
+`class`
+
+Short class label used in the character column, such as `WAR`, `BRD`, `CLR`, or `DRU`.
+
+`class_color`
+
+Hex color used for the class chip text. If this is missing or invalid, the UI falls back to white.
 
 Character fields are currently deprioritized. The main view reads character names from DanNet groups instead of requiring a hardcoded roster.
 

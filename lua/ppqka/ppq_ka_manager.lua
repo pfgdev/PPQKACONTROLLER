@@ -75,6 +75,7 @@ local config = ok and configOrError or {
   display_groups = {},
   active_profiles = {},
   loadouts = {},
+  character_meta = {},
   command_timing = {},
   characters = {},
   command_templates = {},
@@ -2019,7 +2020,51 @@ local function displayCharacterName(characterName)
   return text
 end
 
-local STATUS_TABLE_CHARACTER_WIDTH = 175.0
+local function characterMetaFor(characterName)
+  local meta = config.character_meta or {}
+
+  return meta[characterConfigKey(characterName)] or meta[tostring(characterName or '')]
+end
+
+local function hexColorToRgb(hex)
+  local value = tostring(hex or ''):gsub('#', '')
+
+  if #value ~= 6 then
+    return 1.0, 1.0, 1.0
+  end
+
+  local red = tonumber(value:sub(1, 2), 16)
+  local green = tonumber(value:sub(3, 4), 16)
+  local blue = tonumber(value:sub(5, 6), 16)
+
+  if not red or not green or not blue then
+    return 1.0, 1.0, 1.0
+  end
+
+  return red / 255, green / 255, blue / 255
+end
+
+local function drawCharacterCell(characterName, pending)
+  local meta = characterMetaFor(characterName)
+
+  if pending then
+    drawBehaviorText('>', 'change')
+    ImGui.SameLine(0, 4)
+  end
+
+  if meta and meta.class then
+    local red, green, blue = hexColorToRgb(meta.class_color)
+
+    ImGui.PushStyleColor(ImGuiCol.Text, red, green, blue, 1.0)
+    ImGui.Text('[' .. tostring(meta.class) .. ']')
+    ImGui.PopStyleColor()
+    ImGui.SameLine(0, 6)
+  end
+
+  ImGui.Text(displayCharacterName(characterName))
+end
+
+local STATUS_TABLE_CHARACTER_WIDTH = 190.0
 local STATUS_TABLE_CURRENT_WIDTH = 205.0
 local STATUS_TABLE_UNDO_WIDTH = 72.0
 local STATUS_TABLE_TARGET_WIDTH = MAIN_CONTENT_WIDTH - STATUS_TABLE_CHARACTER_WIDTH - STATUS_TABLE_CURRENT_WIDTH - STATUS_TABLE_UNDO_WIDTH
@@ -2032,11 +2077,6 @@ local STATUS_TABLE_WIDTH = STATUS_TABLE_CHARACTER_WIDTH
 local function drawStatusRow(characterName)
   local pending = pendingChangeFor(characterName)
   local currentBehavior, currentProfile, currentState = currentBehaviorFor(characterName)
-  local displayName = displayCharacterName(characterName)
-
-  if pending then
-    displayName = '> ' .. displayName
-  end
 
   ImGui.TableNextRow(ImGuiTableRowFlags.None, ImGui.GetFrameHeightWithSpacing())
 
@@ -2046,12 +2086,7 @@ local function drawStatusRow(characterName)
 
   ImGui.TableNextColumn()
   ImGui.AlignTextToFramePadding()
-
-  if pending then
-    drawBehaviorText(displayName, 'change')
-  else
-    ImGui.Text(displayName)
-  end
+  drawCharacterCell(characterName, pending)
 
   ImGui.TableNextColumn()
   ImGui.AlignTextToFramePadding()

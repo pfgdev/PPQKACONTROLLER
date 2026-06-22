@@ -28,69 +28,13 @@ Primary goals:
 - Frame live group sections with a darker group header band.
 - Show group title, peer count, and main assist/control metadata in the group header.
 - Tint rows with pending changes.
+- Replace debug-style status prefixes with colored status-dot indicators.
+- Add optional config-backed character metadata.
+- Show compact class chips in the character column when metadata exists.
 
 ## Next Steps
 
-### 1. Replace Status Prefixes With Status Dots
-
-Current behavior still reads like debug text:
-
-```text
-[MAN] Manual
-[RUN] default
-[CHG] -> default
-```
-
-Move toward the mock style:
-
-```text
-blue dot   Manual
-green dot  default
-yellow dot Changing -> default
-red dot    Unknown / Stale
-```
-
-Notes:
-
-- Keep hover text for INI/config details.
-- Keep enough text that status is understandable without relying only on color.
-- Use simple ImGui text/color primitives first; do not overbuild a custom drawing system unless needed.
-
-### 2. Add Optional Character Metadata
-
-Add config-backed metadata so the character column can eventually show class chips like the mock.
-
-Suggested config shape:
-
-```lua
-character_meta = {
-  nandladin = { class = 'WAR', class_color = '#d9c18e' },
-  nodance = { class = 'BRD', class_color = '#f2a7ef' },
-}
-```
-
-Use cases:
-
-- Class chip before character name.
-- Future role or warning tooltip if useful.
-- Avoid hardcoding PPQ roster details in the manager script.
-
-### 3. Add Class Chips
-
-Once metadata exists, update the character column:
-
-```text
-[WAR] Nandladin (you)
-[BRD] Nodance
-```
-
-Notes:
-
-- Keep chips compact.
-- Use config-provided colors.
-- If metadata is missing, show only the character name.
-
-### 4. Improve Table Polish
+### 1. Improve Table Polish
 
 Continue moving the table toward the mock:
 
@@ -100,7 +44,7 @@ Continue moving the table toward the mock:
 - Consider a subtle left marker for pending rows.
 - Reduce any remaining spreadsheet-like visual noise.
 
-### 5. Clean Up Footer Actions
+### 2. Clean Up Footer Actions
 
 The normal footer should become purposeful:
 
@@ -109,7 +53,7 @@ The normal footer should become purposeful:
 - Hide or demote `Show debug` and `Close Script`.
 - Keep reporter/debug details out of the normal reading path.
 
-### 6. Cull Or Hide Debug Plumbing
+### 3. Cull Or Hide Debug Plumbing
 
 Debug still matters while the tool is young, but the normal view should not feel like a debug panel.
 
@@ -119,7 +63,7 @@ Possible direction:
 - Move reporter source, dry-run log, DanNet discovery, and probe details behind debug.
 - Remove obsolete dry-run controls once real apply behavior is stable.
 
-### 7. Manage Loadouts Placeholder
+### 4. Manage Loadouts Placeholder
 
 Keep `Manage Loadouts` as a visible placeholder for now.
 

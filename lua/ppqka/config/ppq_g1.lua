@@ -122,6 +122,21 @@ return {
     shadow = 'default',
   },
 
+  character_meta = {
+    blanka = { class = 'SHM', class_color = '#79d7c7' },
+    boomkenzie = { class = 'DRU', class_color = '#9de3a3' },
+    essek = { class = 'WIZ', class_color = '#8fd0ff' },
+    grog = { class = 'BST', class_color = '#d6a25e' },
+    kelthuzad = { class = 'NEC', class_color = '#c79cff' },
+    lagspike = { class = 'CLR', class_color = '#d7e7ff' },
+    lulu = { class = 'CLR', class_color = '#d7e7ff' },
+    morrigan = { class = 'MAG', class_color = '#f0a66a' },
+    nandarie = { class = 'ENC', class_color = '#d2a7ff' },
+    nandladin = { class = 'WAR', class_color = '#d9c18e' },
+    nodance = { class = 'BRD', class_color = '#f2a7ef' },
+    shadow = { class = 'RNG', class_color = '#b6e07a' },
+  },
+
   loadouts = {
     {
       key = 'g1_normal',
