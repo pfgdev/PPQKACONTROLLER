@@ -39,8 +39,11 @@ local DEFAULT_END_TO_START_DELAY_MS = 2000
 local DEFAULT_LOADOUT_END_SPACING_MS = 250
 local DEFAULT_LOADOUT_START_SPACING_MS = 750
 local APPLY_CONFIRM_SECONDS = 24
-local TOP_BAR_TARGET_X = 520
-local TOP_BAR_ACTION_X = 580
+local MAIN_CONTENT_WIDTH = 1020.0
+local LOADOUT_LEFT_WIDTH = 420.0
+local LOADOUT_RIGHT_WIDTH = MAIN_CONTENT_WIDTH - LOADOUT_LEFT_WIDTH
+local LOADOUT_LABEL_WIDTH = 112.0
+local LOADOUT_COMBO_WIDTH = 230.0
 local discovery = {
   local_name = 'unknown',
   version = 'unknown',
@@ -1763,52 +1766,72 @@ local function drawLoadoutControls()
   local loadout = selectedLoadout()
   local loadoutPreview = targetLoadoutModified and 'Modified / Unsaved' or (loadout.label or loadout.key or 'unknown')
   local changeCount = pendingChangeCount()
+  local flags = bit32.bor(ImGuiTableFlags.SizingFixedFit, ImGuiTableFlags.NoHostExtendX)
 
-  ImGui.Text('Current Loadout')
-  ImGui.SameLine(120)
-  drawCurrentLoadoutText()
-  ImGui.SameLine(TOP_BAR_TARGET_X)
-  ImGui.Text('Target Loadout')
-  ImGui.SameLine(TOP_BAR_TARGET_X + 105)
+  if ImGui.BeginTable('loadout_controls', 2, flags, ImVec2(MAIN_CONTENT_WIDTH, 0)) then
+    ImGui.TableSetupColumn('current_loadout_panel', ImGuiTableColumnFlags.WidthFixed, LOADOUT_LEFT_WIDTH)
+    ImGui.TableSetupColumn('target_loadout_panel', ImGuiTableColumnFlags.WidthFixed, LOADOUT_RIGHT_WIDTH)
 
-  if #entries == 0 then
-    ImGui.Text('none configured')
-    return
-  end
+    ImGui.TableNextRow()
+    ImGui.TableNextColumn()
+    ImGui.AlignTextToFramePadding()
+    local currentStartX = ImGui.GetCursorPosX()
+    drawMutedText('Current Loadout')
+    ImGui.SameLine()
+    ImGui.SetCursorPosX(currentStartX + LOADOUT_LABEL_WIDTH)
+    drawCurrentLoadoutText()
 
-  ImGui.SetNextItemWidth(220)
+    ImGui.TableNextColumn()
+    ImGui.AlignTextToFramePadding()
+    local targetStartX = ImGui.GetCursorPosX()
+    drawMutedText('Target Loadout')
+    ImGui.SameLine()
+    ImGui.SetCursorPosX(targetStartX + LOADOUT_LABEL_WIDTH)
 
-  if ImGui.BeginCombo('##loadout_selector', loadoutPreview) then
-    for _, entry in ipairs(entries) do
-      local isSelected = not targetLoadoutModified and entry.key == (loadout and loadout.key)
-      local _, clicked = ImGui.Selectable(tostring(entry.label or entry.key or 'unknown'), isSelected)
+    if #entries == 0 then
+      ImGui.Text('none configured')
+    else
+      ImGui.SetNextItemWidth(LOADOUT_COMBO_WIDTH)
 
-      if clicked then
-        selectTargetLoadout(entry)
+      if ImGui.BeginCombo('##loadout_selector', loadoutPreview) then
+        for _, entry in ipairs(entries) do
+          local isSelected = not targetLoadoutModified and entry.key == (loadout and loadout.key)
+          local _, clicked = ImGui.Selectable(tostring(entry.label or entry.key or 'unknown'), isSelected)
+
+          if clicked then
+            selectTargetLoadout(entry)
+          end
+        end
+
+        ImGui.EndCombo()
+      end
+
+      ImGui.SameLine()
+
+      if ImGui.Button('Manage Loadouts') then
+        logAction('TODO', 'Manage Loadouts is not implemented yet')
       end
     end
 
-    ImGui.EndCombo()
-  end
+    ImGui.TableNextRow()
+    ImGui.TableNextColumn()
+    ImGui.TableNextColumn()
+    local actionStartX = ImGui.GetCursorPosX()
+    ImGui.SetCursorPosX(actionStartX + LOADOUT_LABEL_WIDTH)
+    drawMutedText(changeCountText(changeCount) .. ' pending')
+    ImGui.SameLine()
 
-  ImGui.SameLine()
+    if ImGui.Button('Clear') then
+      clearTargetSelection()
+    end
 
-  if ImGui.Button('Manage Loadouts') then
-    logAction('TODO', 'Manage Loadouts is not implemented yet')
-  end
+    ImGui.SameLine()
 
-  ImGui.SetCursorPosX(TOP_BAR_ACTION_X)
-  ImGui.Text(changeCountText(changeCount) .. ' pending')
-  ImGui.SameLine()
+    if drawAccentButton('Apply ' .. changeCountText(changeCount)) then
+      applyPendingChanges()
+    end
 
-  if ImGui.Button('Clear') then
-    clearTargetSelection()
-  end
-
-  ImGui.SameLine()
-
-  if drawAccentButton('Apply ' .. changeCountText(changeCount)) then
-    applyPendingChanges()
+    ImGui.EndTable()
   end
 end
 
@@ -1969,9 +1992,9 @@ local function displayCharacterName(characterName)
 end
 
 local STATUS_TABLE_CHARACTER_WIDTH = 175.0
-local STATUS_TABLE_CURRENT_WIDTH = 205.0
-local STATUS_TABLE_TARGET_WIDTH = 260.0
+local STATUS_TABLE_CURRENT_WIDTH = 225.0
 local STATUS_TABLE_UNDO_WIDTH = 72.0
+local STATUS_TABLE_TARGET_WIDTH = MAIN_CONTENT_WIDTH - STATUS_TABLE_CHARACTER_WIDTH - STATUS_TABLE_CURRENT_WIDTH - STATUS_TABLE_UNDO_WIDTH
 local STATUS_TABLE_UNDO_BUTTON_WIDTH = 24.0
 local STATUS_TABLE_WIDTH = STATUS_TABLE_CHARACTER_WIDTH
   + STATUS_TABLE_CURRENT_WIDTH
