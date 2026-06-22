@@ -31,6 +31,7 @@ This repository is an initial scaffold only.
 |   +-- DECISIONS.md
 |   +-- ROADMAP.md
 |   +-- TESTING.md
+|   +-- UI_ROADMAP.md
 +-- lua/
     +-- ppqka/
         +-- ppq_ka_manager.lua
