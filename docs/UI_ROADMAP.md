@@ -35,29 +35,23 @@ Primary goals:
 - Use a clearer warm pending row highlight.
 - Add a subtle left pending marker.
 - Use slightly taller, consistent status rows.
+- Repeat `Clear` and `Apply N Changes` in a bottom footer action row.
+- Demote `Debug` and hide reporter/source details unless debug is open.
+- Remove old dry-run group actions and configured-character lists from the visible debug path.
 
 ## Next Steps
 
-### 1. Clean Up Footer Actions
-
-The normal footer should become purposeful:
-
-- `Refresh` as the primary left-side utility action.
-- `Clear` and `Apply N Changes` repeated on the right, matching the header.
-- Hide or demote `Show debug` and `Close Script`.
-- Keep reporter/debug details out of the normal reading path.
-
-### 2. Cull Or Hide Debug Plumbing
+### 1. Cull Or Hide Debug Plumbing
 
 Debug still matters while the tool is young, but the normal view should not feel like a debug panel.
 
 Possible direction:
 
-- Keep `Show debug` small and secondary.
-- Move reporter source, dry-run log, DanNet discovery, and probe details behind debug.
-- Remove obsolete dry-run controls once real apply behavior is stable.
+- Keep `Debug` small and secondary.
+- Decide whether the action log and DanNet discovery should remain in the manager or move to a separate debug-only view later.
+- Remove obsolete dry-run helper functions once real apply behavior has had more testing.
 
-### 3. Manage Loadouts Placeholder
+### 2. Manage Loadouts Placeholder
 
 Keep `Manage Loadouts` as a visible placeholder for now.
 

@@ -1775,6 +1775,18 @@ local function drawAccentButton(label, size)
   return clicked
 end
 
+local function drawPendingActionButtons(changeCount)
+  if ImGui.Button('Clear', ImVec2(LOADOUT_CLEAR_WIDTH, 0)) then
+    clearTargetSelection()
+  end
+
+  ImGui.SameLine()
+
+  if drawAccentButton('Apply ' .. changeCountText(changeCount), ImVec2(LOADOUT_APPLY_WIDTH, 0)) then
+    applyPendingChanges()
+  end
+end
+
 local function drawLoadoutControls()
   local entries = loadoutEntries()
   local loadout = selectedLoadout()
@@ -1835,16 +1847,7 @@ local function drawLoadoutControls()
     ImGui.TableNextColumn()
     local actionStartX = ImGui.GetCursorPosX()
     ImGui.SetCursorPosX(actionStartX + LOADOUT_RIGHT_WIDTH - actionWidth)
-
-    if ImGui.Button('Clear', ImVec2(LOADOUT_CLEAR_WIDTH, 0)) then
-      clearTargetSelection()
-    end
-
-    ImGui.SameLine()
-
-    if drawAccentButton('Apply ' .. changeCountText(changeCount), ImVec2(LOADOUT_APPLY_WIDTH, 0)) then
-      applyPendingChanges()
-    end
+    drawPendingActionButtons(changeCount)
 
     ImGui.EndTable()
   end
@@ -2206,6 +2209,47 @@ local function drawStatusOverview()
   end
 end
 
+local function drawFooterActions()
+  local flags = bit32.bor(ImGuiTableFlags.SizingFixedFit, ImGuiTableFlags.NoHostExtendX)
+  local actionWidth = LOADOUT_CLEAR_WIDTH + 8.0 + LOADOUT_APPLY_WIDTH
+
+  if ImGui.BeginTable('footer_actions', 2, flags, ImVec2(MAIN_CONTENT_WIDTH, 0)) then
+    ImGui.TableSetupColumn('footer_left', ImGuiTableColumnFlags.WidthFixed, LOADOUT_LEFT_WIDTH)
+    ImGui.TableSetupColumn('footer_right', ImGuiTableColumnFlags.WidthFixed, LOADOUT_RIGHT_WIDTH)
+
+    ImGui.TableNextRow()
+    ImGui.TableNextColumn()
+
+    if ImGui.Button('Refresh') then
+      refreshDanNetDiscovery()
+      startReporters()
+      refreshPeerStatusQueries()
+      logDryRun('refresh', 'Read DanNet peers, start reporters, and query reported status')
+    end
+
+    ImGui.SameLine()
+
+    if ImGui.Button(showDebug and 'Hide Debug' or 'Debug') then
+      showDebug = not showDebug
+    end
+
+    ImGui.TableNextColumn()
+    local actionStartX = ImGui.GetCursorPosX()
+    ImGui.SetCursorPosX(actionStartX + LOADOUT_RIGHT_WIDTH - actionWidth)
+    drawPendingActionButtons(pendingChangeCount())
+
+    ImGui.EndTable()
+  end
+
+  if showDebug then
+    drawMutedText('Reporter source: PPQKA via DanNet')
+
+    if ImGui.Button('Close Script') then
+      terminate = true
+    end
+  end
+end
+
 local function drawCharacterRow(character)
   local characterName = character.name or 'unknown'
 
@@ -2391,27 +2435,7 @@ local function render()
 
   if shouldDraw then
     drawStatusOverview()
-
-    if ImGui.Button('Refresh') then
-      refreshDanNetDiscovery()
-      startReporters()
-      refreshPeerStatusQueries()
-      logDryRun('refresh', 'Read DanNet peers, start reporters, and query reported status')
-    end
-
-    ImGui.SameLine()
-
-    if ImGui.Button(showDebug and 'Hide debug' or 'Show debug') then
-      showDebug = not showDebug
-    end
-
-    ImGui.SameLine()
-
-    if ImGui.Button('Close Script') then
-      terminate = true
-    end
-
-    drawMutedText('Reporter source: PPQKA via DanNet')
+    drawFooterActions()
     ImGui.Separator()
 
     if showDebug then
@@ -2419,26 +2443,11 @@ local function render()
 
       ImGui.Separator()
 
-      drawGroupActions()
-
-      ImGui.Separator()
-      ImGui.Text('Configured characters')
-
-      local characters = config.characters or {}
-      if #characters == 0 then
-        ImGui.Text('No configured character rows. Top table groups known DanNet peers by live EQ group state.')
-      else
-        for _, character in ipairs(characters) do
-          drawCharacterRow(character)
-        end
-      end
-
-      ImGui.Separator()
-      ImGui.Text('Dry-run log')
-
       if #dryRunLog == 0 then
-        ImGui.Text('No dry-run actions yet.')
+        ImGui.Text('Action log is empty.')
       else
+        ImGui.Text('Action log')
+
         for _, line in ipairs(dryRunLog) do
           ImGui.TextWrapped(line)
         end
