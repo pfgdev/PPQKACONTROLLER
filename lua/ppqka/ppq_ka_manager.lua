@@ -1872,15 +1872,31 @@ drawBehaviorText = function(text, state)
   ImGui.TextColored(red, green, blue, alpha, text)
 end
 
+local function alignTextToRowHeight(rowHeight)
+  local offset = (rowHeight - ImGui.GetTextLineHeight()) * 0.5
+
+  if offset > 0 then
+    ImGui.SetCursorPosY(ImGui.GetCursorPosY() + offset)
+  end
+end
+
+local function drawBehaviorWithDot(text, state)
+  local red, green, blue, alpha = behaviorTextColor(state)
+
+  ImGui.TextColored(red, green, blue, alpha, 'o')
+  ImGui.SameLine()
+  ImGui.Text(text)
+end
+
 local function currentBehaviorFor(characterName)
   local inFlight = inFlightChangeFor(characterName)
 
   if inFlight then
     if inFlight.kind == 'profile' then
-      return '[CHG] -> ' .. changeTargetLabel(inFlight), profileForKey(characterName, inFlight.profile), 'change'
+      return 'Changing -> ' .. changeTargetLabel(inFlight), profileForKey(characterName, inFlight.profile), 'change'
     end
 
-    return '[CHG] -> Manual', {
+    return 'Changing -> Manual', {
       key = nil,
       label = 'Manual',
       ini = 'Ending KissAssist',
@@ -1892,26 +1908,26 @@ local function currentBehaviorFor(characterName)
   local selectedProfile = profileForIni(characterName, reportedStatus.kiss_ini) or selectedProfileFor(characterName)
 
   if status == 'active' then
-    return '[RUN] ' .. selectedProfile.label, selectedProfile, 'run'
+    return selectedProfile.label, selectedProfile, 'run'
   end
 
   if status == 'paused' then
-    return '[PAUSE] ' .. selectedProfile.label, selectedProfile, 'pause'
+    return 'Paused: ' .. selectedProfile.label, selectedProfile, 'pause'
   end
 
   if status == 'checking' then
-    return '[CHK] Checking', selectedProfile, 'checking'
+    return 'Checking', selectedProfile, 'checking'
   end
 
   if status == 'unknown' then
     if reportedStatus.reporter_stale then
-      return '[STALE] Unknown', selectedProfile, 'stale'
+      return 'Stale / Unknown', selectedProfile, 'stale'
     end
 
-    return '[UNK] Unknown', selectedProfile, 'unknown'
+    return 'Unknown', selectedProfile, 'unknown'
   end
 
-  return '[MAN] Manual', selectedProfile, 'manual'
+  return 'Manual', selectedProfile, 'manual'
 end
 
 local function pendingChangeLabel(characterName)
@@ -2039,7 +2055,7 @@ local function drawStatusRow(characterName)
 
   ImGui.TableNextColumn()
   ImGui.AlignTextToFramePadding()
-  drawBehaviorText(currentBehavior, currentState)
+  drawBehaviorWithDot(currentBehavior, currentState)
 
   if ImGui.IsItemHovered() then
     ImGui.SetTooltip(currentProfile.ini)
@@ -2099,13 +2115,13 @@ local function drawGroupHeader(group, peers)
     ImGui.TableSetBgColor(ImGuiTableBgTarget.RowBg0, 0.12, 0.16, 0.22, 0.88)
 
     ImGui.TableNextColumn()
-    ImGui.AlignTextToFramePadding()
+    alignTextToRowHeight(GROUP_HEADER_HEIGHT)
     ImGui.Text(group.label or group.peers or 'Group')
     ImGui.SameLine()
     drawMutedText('Peers: ' .. tostring(#peers))
 
     ImGui.TableNextColumn()
-    ImGui.AlignTextToFramePadding()
+    alignTextToRowHeight(GROUP_HEADER_HEIGHT)
 
     if meta then
       drawMutedText(meta)
