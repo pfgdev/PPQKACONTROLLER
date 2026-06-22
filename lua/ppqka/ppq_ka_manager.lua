@@ -1881,6 +1881,14 @@ local function alignTextToRowHeight(rowHeight)
   end
 end
 
+local function alignFrameToRowHeight(rowHeight)
+  local offset = (rowHeight - ImGui.GetFrameHeight()) * 0.5
+
+  if offset > 0 then
+    ImGui.SetCursorPosY(ImGui.GetCursorPosY() + offset)
+  end
+end
+
 local function drawBehaviorWithDot(text, state)
   local red, green, blue, alpha = behaviorTextColor(state)
 
@@ -2048,8 +2056,8 @@ local function drawCharacterCell(characterName, pending)
   local meta = characterMetaFor(characterName)
 
   if pending then
-    drawBehaviorText('>', 'change')
-    ImGui.SameLine(0, 4)
+    drawBehaviorText('|', 'change')
+    ImGui.SameLine(0, 5)
   end
 
   if meta and meta.class then
@@ -2069,27 +2077,32 @@ local STATUS_TABLE_CURRENT_WIDTH = 205.0
 local STATUS_TABLE_UNDO_WIDTH = 72.0
 local STATUS_TABLE_TARGET_WIDTH = MAIN_CONTENT_WIDTH - STATUS_TABLE_CHARACTER_WIDTH - STATUS_TABLE_CURRENT_WIDTH - STATUS_TABLE_UNDO_WIDTH
 local STATUS_TABLE_UNDO_BUTTON_WIDTH = 24.0
+local STATUS_TABLE_ROW_HEIGHT = 30.0
 local STATUS_TABLE_WIDTH = STATUS_TABLE_CHARACTER_WIDTH
   + STATUS_TABLE_CURRENT_WIDTH
   + STATUS_TABLE_TARGET_WIDTH
   + STATUS_TABLE_UNDO_WIDTH
 
-local function drawStatusRow(characterName)
+local function drawStatusRow(characterName, rowIndex)
   local pending = pendingChangeFor(characterName)
   local currentBehavior, currentProfile, currentState = currentBehaviorFor(characterName)
 
-  ImGui.TableNextRow(ImGuiTableRowFlags.None, ImGui.GetFrameHeightWithSpacing())
+  ImGui.TableNextRow(ImGuiTableRowFlags.None, STATUS_TABLE_ROW_HEIGHT)
 
   if pending then
-    ImGui.TableSetBgColor(ImGuiTableBgTarget.RowBg0, 0.35, 0.27, 0.10, 0.40)
+    ImGui.TableSetBgColor(ImGuiTableBgTarget.RowBg0, 0.34, 0.29, 0.14, 0.72)
+  elseif rowIndex % 2 == 0 then
+    ImGui.TableSetBgColor(ImGuiTableBgTarget.RowBg0, 0.12, 0.14, 0.17, 0.45)
+  else
+    ImGui.TableSetBgColor(ImGuiTableBgTarget.RowBg0, 0.07, 0.08, 0.10, 0.35)
   end
 
   ImGui.TableNextColumn()
-  ImGui.AlignTextToFramePadding()
+  alignTextToRowHeight(STATUS_TABLE_ROW_HEIGHT)
   drawCharacterCell(characterName, pending)
 
   ImGui.TableNextColumn()
-  ImGui.AlignTextToFramePadding()
+  alignTextToRowHeight(STATUS_TABLE_ROW_HEIGHT)
   drawBehaviorWithDot(currentBehavior, currentState)
 
   if ImGui.IsItemHovered() then
@@ -2097,12 +2110,14 @@ local function drawStatusRow(characterName)
   end
 
   ImGui.TableNextColumn()
+  alignFrameToRowHeight(STATUS_TABLE_ROW_HEIGHT)
   drawTargetDropdown(characterName)
 
   ImGui.TableNextColumn()
   if pending then
     local columnWidth = ImGui.GetColumnWidth()
     local offset = math.max(0, (columnWidth - STATUS_TABLE_UNDO_BUTTON_WIDTH) * 0.5)
+    alignFrameToRowHeight(STATUS_TABLE_ROW_HEIGHT)
     ImGui.SetCursorPosX(ImGui.GetCursorPosX() + offset)
     if ImGui.Button('X##clear_target_' .. characterName, ImVec2(STATUS_TABLE_UNDO_BUTTON_WIDTH, 0)) then
       clearPendingChange(characterName)
@@ -2115,7 +2130,7 @@ end
 
 local function drawStatusTable(group, peers)
   local tableId = 'status_table_' .. tostring(group.key or group.label or group.peers or 'group')
-  local flags = bit32.bor(ImGuiTableFlags.BordersOuter, ImGuiTableFlags.BordersV, ImGuiTableFlags.RowBg, ImGuiTableFlags.SizingFixedFit, ImGuiTableFlags.NoHostExtendX)
+  local flags = bit32.bor(ImGuiTableFlags.BordersOuter, ImGuiTableFlags.BordersV, ImGuiTableFlags.SizingFixedFit, ImGuiTableFlags.NoHostExtendX)
 
   if ImGui.BeginTable(tableId, 4, flags, ImVec2(STATUS_TABLE_WIDTH, 0)) then
     ImGui.TableSetupColumn('Character', ImGuiTableColumnFlags.WidthFixed, STATUS_TABLE_CHARACTER_WIDTH)
@@ -2124,8 +2139,8 @@ local function drawStatusTable(group, peers)
     ImGui.TableSetupColumn('Undo', ImGuiTableColumnFlags.WidthFixed, STATUS_TABLE_UNDO_WIDTH)
     ImGui.TableHeadersRow()
 
-    for _, peer in ipairs(peers) do
-      drawStatusRow(peer)
+    for index, peer in ipairs(peers) do
+      drawStatusRow(peer, index)
     end
 
     ImGui.EndTable()

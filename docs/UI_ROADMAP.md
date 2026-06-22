@@ -31,20 +31,14 @@ Primary goals:
 - Replace debug-style status prefixes with colored status-dot indicators.
 - Add optional config-backed character metadata.
 - Show compact class chips in the character column when metadata exists.
+- Apply softer manual row striping.
+- Use a clearer warm pending row highlight.
+- Add a subtle left pending marker.
+- Use slightly taller, consistent status rows.
 
 ## Next Steps
 
-### 1. Improve Table Polish
-
-Continue moving the table toward the mock:
-
-- Slightly taller, consistent rows if needed.
-- Softer row striping.
-- Pending row highlight with a clearer warm tint.
-- Consider a subtle left marker for pending rows.
-- Reduce any remaining spreadsheet-like visual noise.
-
-### 2. Clean Up Footer Actions
+### 1. Clean Up Footer Actions
 
 The normal footer should become purposeful:
 
@@ -53,7 +47,7 @@ The normal footer should become purposeful:
 - Hide or demote `Show debug` and `Close Script`.
 - Keep reporter/debug details out of the normal reading path.
 
-### 3. Cull Or Hide Debug Plumbing
+### 2. Cull Or Hide Debug Plumbing
 
 Debug still matters while the tool is young, but the normal view should not feel like a debug panel.
 
@@ -63,7 +57,7 @@ Possible direction:
 - Move reporter source, dry-run log, DanNet discovery, and probe details behind debug.
 - Remove obsolete dry-run controls once real apply behavior is stable.
 
-### 4. Manage Loadouts Placeholder
+### 3. Manage Loadouts Placeholder
 
 Keep `Manage Loadouts` as a visible placeholder for now.
 
