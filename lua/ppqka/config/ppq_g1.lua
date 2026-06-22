@@ -125,6 +125,7 @@ return {
   character_meta = {
     blanka = { class = 'SHM', class_color = '#79d7c7' },
     boomkenzie = { class = 'DRU', class_color = '#9de3a3' },
+    chetney = { class = 'ROG', class_color = '#f0b070' },
     essek = { class = 'WIZ', class_color = '#8fd0ff' },
     grog = { class = 'BST', class_color = '#d6a25e' },
     kelthuzad = { class = 'NEC', class_color = '#c79cff' },
