@@ -40,10 +40,13 @@ local DEFAULT_LOADOUT_END_SPACING_MS = 250
 local DEFAULT_LOADOUT_START_SPACING_MS = 750
 local APPLY_CONFIRM_SECONDS = 24
 local MAIN_CONTENT_WIDTH = 720.0
-local LOADOUT_LEFT_WIDTH = 280.0
+local LOADOUT_LEFT_WIDTH = 420.0
 local LOADOUT_RIGHT_WIDTH = MAIN_CONTENT_WIDTH - LOADOUT_LEFT_WIDTH
-local LOADOUT_LABEL_WIDTH = 104.0
-local LOADOUT_COMBO_WIDTH = 180.0
+local LOADOUT_LABEL_WIDTH = 62.0
+local LOADOUT_COMBO_WIDTH = 260.0
+local LOADOUT_MANAGE_WIDTH = 244.0
+local LOADOUT_CLEAR_WIDTH = 64.0
+local LOADOUT_APPLY_WIDTH = 172.0
 local discovery = {
   local_name = 'unknown',
   version = 'unknown',
@@ -1752,11 +1755,18 @@ local function drawMutedText(text)
   ImGui.PopStyleColor()
 end
 
-local function drawAccentButton(label)
+local function drawAccentButton(label, size)
   ImGui.PushStyleColor(ImGuiCol.Button, 0.22, 0.42, 0.25, 1.0)
   ImGui.PushStyleColor(ImGuiCol.ButtonHovered, 0.30, 0.55, 0.34, 1.0)
   ImGui.PushStyleColor(ImGuiCol.ButtonActive, 0.18, 0.35, 0.21, 1.0)
-  local clicked = ImGui.Button(label)
+  local clicked
+
+  if size then
+    clicked = ImGui.Button(label, size)
+  else
+    clicked = ImGui.Button(label)
+  end
+
   ImGui.PopStyleColor(3)
   return clicked
 end
@@ -1767,6 +1777,7 @@ local function drawLoadoutControls()
   local loadoutPreview = targetLoadoutModified and 'Modified / Unsaved' or (loadout.label or loadout.key or 'unknown')
   local changeCount = pendingChangeCount()
   local flags = bit32.bor(ImGuiTableFlags.SizingFixedFit, ImGuiTableFlags.NoHostExtendX)
+  local actionWidth = LOADOUT_CLEAR_WIDTH + 8.0 + LOADOUT_APPLY_WIDTH
 
   if ImGui.BeginTable('loadout_controls', 2, flags, ImVec2(MAIN_CONTENT_WIDTH, 0)) then
     ImGui.TableSetupColumn('current_loadout_panel', ImGuiTableColumnFlags.WidthFixed, LOADOUT_LEFT_WIDTH)
@@ -1776,15 +1787,25 @@ local function drawLoadoutControls()
     ImGui.TableNextColumn()
     ImGui.AlignTextToFramePadding()
     local currentStartX = ImGui.GetCursorPosX()
-    drawMutedText('Current Loadout')
+    drawMutedText('Current')
     ImGui.SameLine()
     ImGui.SetCursorPosX(currentStartX + LOADOUT_LABEL_WIDTH)
     drawCurrentLoadoutText()
 
     ImGui.TableNextColumn()
     ImGui.AlignTextToFramePadding()
+    local manageStartX = ImGui.GetCursorPosX()
+    ImGui.SetCursorPosX(manageStartX + LOADOUT_RIGHT_WIDTH - LOADOUT_MANAGE_WIDTH)
+
+    if ImGui.Button('Manage Loadouts', ImVec2(LOADOUT_MANAGE_WIDTH, 0)) then
+      logAction('TODO', 'Manage Loadouts is not implemented yet')
+    end
+
+    ImGui.TableNextRow()
+    ImGui.TableNextColumn()
+    ImGui.AlignTextToFramePadding()
     local targetStartX = ImGui.GetCursorPosX()
-    drawMutedText('Target Loadout')
+    drawMutedText('Target')
     ImGui.SameLine()
     ImGui.SetCursorPosX(targetStartX + LOADOUT_LABEL_WIDTH)
 
@@ -1805,29 +1826,19 @@ local function drawLoadoutControls()
 
         ImGui.EndCombo()
       end
-
-      ImGui.SameLine()
-
-      if ImGui.Button('Manage Loadouts') then
-        logAction('TODO', 'Manage Loadouts is not implemented yet')
-      end
     end
 
-    ImGui.TableNextRow()
-    ImGui.TableNextColumn()
     ImGui.TableNextColumn()
     local actionStartX = ImGui.GetCursorPosX()
-    ImGui.SetCursorPosX(actionStartX + LOADOUT_LABEL_WIDTH)
-    drawMutedText(changeCountText(changeCount) .. ' pending')
-    ImGui.SameLine()
+    ImGui.SetCursorPosX(actionStartX + LOADOUT_RIGHT_WIDTH - actionWidth)
 
-    if ImGui.Button('Clear') then
+    if ImGui.Button('Clear', ImVec2(LOADOUT_CLEAR_WIDTH, 0)) then
       clearTargetSelection()
     end
 
     ImGui.SameLine()
 
-    if drawAccentButton('Apply ' .. changeCountText(changeCount)) then
+    if drawAccentButton('Apply ' .. changeCountText(changeCount), ImVec2(LOADOUT_APPLY_WIDTH, 0)) then
       applyPendingChanges()
     end
 
