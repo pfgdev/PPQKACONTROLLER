@@ -47,6 +47,7 @@ local LOADOUT_COMBO_WIDTH = 260.0
 local LOADOUT_MANAGE_WIDTH = 244.0
 local LOADOUT_CLEAR_WIDTH = 64.0
 local LOADOUT_APPLY_WIDTH = 172.0
+local GROUP_HEADER_HEIGHT = 30.0
 local discovery = {
   local_name = 'unknown',
   version = 'unknown',
@@ -2080,6 +2081,42 @@ local function drawStatusTable(group, peers)
   end
 end
 
+local function drawGroupHeader(group, peers)
+  local headerId = 'group_header_' .. tostring(group.key or group.label or group.peers or 'group')
+  local flags = bit32.bor(ImGuiTableFlags.BordersOuter, ImGuiTableFlags.SizingFixedFit, ImGuiTableFlags.NoHostExtendX)
+  local meta = nil
+
+  if group.main_assist then
+    meta = 'MA: ' .. tostring(group.main_assist)
+  elseif group.control then
+    meta = 'Control: ' .. tostring(group.control)
+  end
+
+  if ImGui.BeginTable(headerId, 2, flags, ImVec2(STATUS_TABLE_WIDTH, 0)) then
+    ImGui.TableSetupColumn('group_title', ImGuiTableColumnFlags.WidthFixed, STATUS_TABLE_WIDTH - 180.0)
+    ImGui.TableSetupColumn('group_meta', ImGuiTableColumnFlags.WidthFixed, 180.0)
+    ImGui.TableNextRow(ImGuiTableRowFlags.None, GROUP_HEADER_HEIGHT)
+    ImGui.TableSetBgColor(ImGuiTableBgTarget.RowBg0, 0.12, 0.16, 0.22, 0.88)
+
+    ImGui.TableNextColumn()
+    ImGui.AlignTextToFramePadding()
+    ImGui.Text(group.label or group.peers or 'Group')
+    ImGui.SameLine()
+    drawMutedText('Peers: ' .. tostring(#peers))
+
+    ImGui.TableNextColumn()
+    ImGui.AlignTextToFramePadding()
+
+    if meta then
+      drawMutedText(meta)
+    else
+      ImGui.Text('')
+    end
+
+    ImGui.EndTable()
+  end
+end
+
 local function drawStatusOverview()
   drawLoadoutControls()
   ImGui.Separator()
@@ -2087,17 +2124,7 @@ local function drawStatusOverview()
   for _, group in ipairs(currentGroupViews()) do
     local peers = group.peers or {}
 
-    ImGui.Text(group.label or group.peers or 'Group')
-    ImGui.SameLine(170)
-    drawMutedText('Peers: ' .. tostring(#peers))
-    if group.main_assist then
-      ImGui.SameLine(STATUS_TABLE_WIDTH - 130)
-      drawMutedText('MA: ' .. group.main_assist)
-    end
-    if group.control then
-      ImGui.SameLine(STATUS_TABLE_WIDTH - 130)
-      drawMutedText('Control: ' .. group.control)
-    end
+    drawGroupHeader(group, peers)
 
     if #peers == 0 then
       ImGui.Text('(no peers reported)')
@@ -2105,7 +2132,7 @@ local function drawStatusOverview()
       drawStatusTable(group, peers)
     end
 
-    ImGui.Separator()
+    ImGui.Spacing()
   end
 end
 
