@@ -48,7 +48,8 @@ local LOADOUT_MANAGE_WIDTH = 244.0
 local LOADOUT_CLEAR_WIDTH = 64.0
 local LOADOUT_APPLY_WIDTH = 172.0
 local GROUP_HEADER_HEIGHT = 30.0
-local ROW_TEXT_Y_NUDGE = -1.0
+local ROW_TEXT_Y_NUDGE = -2.0
+local GROUP_HEADER_TEXT_Y_NUDGE = -1.0
 local ROW_FRAME_Y_NUDGE = 0.0
 local discovery = {
   local_name = 'unknown',
@@ -1878,9 +1879,9 @@ drawBehaviorText = function(text, state)
   ImGui.TextColored(red, green, blue, alpha, text)
 end
 
-local function alignTextToRowHeight(rowHeight)
+local function alignTextToRowHeight(rowHeight, yNudge)
   local cellPadding = ImGui.GetStyle().CellPadding
-  local offset = ((rowHeight - ImGui.GetTextLineHeight()) * 0.5) - (cellPadding and cellPadding.y or 0) + ROW_TEXT_Y_NUDGE
+  local offset = ((rowHeight - ImGui.GetTextLineHeight()) * 0.5) - (cellPadding and cellPadding.y or 0) + (yNudge or ROW_TEXT_Y_NUDGE)
 
   if offset > 0 then
     ImGui.SetCursorPosY(ImGui.GetCursorPosY() + offset)
@@ -2172,13 +2173,13 @@ local function drawGroupHeader(group, peers)
     ImGui.TableSetBgColor(ImGuiTableBgTarget.RowBg0, 0.12, 0.16, 0.22, 0.88)
 
     ImGui.TableNextColumn()
-    alignTextToRowHeight(GROUP_HEADER_HEIGHT)
+    alignTextToRowHeight(GROUP_HEADER_HEIGHT, GROUP_HEADER_TEXT_Y_NUDGE)
     ImGui.Text(group.label or group.peers or 'Group')
     ImGui.SameLine()
     drawMutedText('Peers: ' .. tostring(#peers))
 
     ImGui.TableNextColumn()
-    alignTextToRowHeight(GROUP_HEADER_HEIGHT)
+    alignTextToRowHeight(GROUP_HEADER_HEIGHT, GROUP_HEADER_TEXT_Y_NUDGE)
 
     if meta then
       drawMutedText(meta)
