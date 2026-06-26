@@ -6,7 +6,7 @@ The first testing workflow is:
 
 1. Edit files in this repository.
 2. Copy this repository's `lua/` folder contents into the MacroQuest `lua/` folder.
-3. Copy your local `config/ppqka/ppqka_config.lua` into the MacroQuest `config/ppqka/` folder.
+3. Copy your local `ppqka_config.lua` into the MacroQuest config folder.
 4. Run the script in-game.
 5. Record what worked or failed.
 6. Make one small change and repeat.
@@ -25,7 +25,7 @@ Into the MacroQuest Lua folder so MacroQuest sees:
 MacroQuest/lua/ppqka/ppq_ka_manager.lua
 MacroQuest/lua/ppqka/ppq_ka_reporter.lua
 MacroQuest/lua/ppqka/config/ppqka_config_example.lua
-MacroQuest/config/ppqka/ppqka_config.lua
+MacroQuest/config/ppqka_config.lua
 ```
 
 Then run:

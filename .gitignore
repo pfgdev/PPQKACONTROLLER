@@ -15,4 +15,5 @@ Desktop.ini
 luac.out
 
 # User-owned PPQKA config
+config/ppqka_config.lua
 config/ppqka/ppqka_config.lua

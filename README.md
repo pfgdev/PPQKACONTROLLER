@@ -10,7 +10,7 @@ This repository is an initial scaffold only.
 
 - Documentation exists for the intended architecture, commands, config, and roadmap.
 - A bundled example config exists at `lua/ppqka/config/ppqka_config_example.lua`.
-- User-owned config lives outside the Lua package at `config/ppqka/ppqka_config.lua`.
+- User-owned config lives outside the Lua package at `config/ppqka_config.lua`.
 - A minimal ImGui script exists at `lua/ppqka/ppq_ka_manager.lua`.
 - A companion reporter exists at `lua/ppqka/ppq_ka_reporter.lua`.
 - The manager auto-starts reporters on known DanNet peers and reads their published `PPQKA_Status`.
@@ -33,10 +33,8 @@ This repository is an initial scaffold only.
 |   +-- ROADMAP.md
 |   +-- TESTING.md
 |   +-- UI_ROADMAP.md
-+-- lua/
 +-- config/
-|   +-- ppqka/
-|       +-- ppqka_config.lua
+|   +-- ppqka_config.lua
 +-- lua/
     +-- ppqka/
         +-- ppq_ka_manager.lua
@@ -47,7 +45,7 @@ This repository is an initial scaffold only.
 
 ## MacroQuest Setup
 
-For early testing, copy or sync the contents of this repository's `lua/` folder into your MacroQuest `lua/` folder. Copy your local config into MacroQuest's `config/ppqka/` folder.
+For early testing, copy or sync the contents of this repository's `lua/` folder into your MacroQuest `lua/` folder. Copy your local config to MacroQuest's config directory as `ppqka_config.lua`.
 
 The controller and reporter must both be present:
 
@@ -56,7 +54,7 @@ The controller and reporter must both be present:
 
 Your local settings should be present at:
 
-- `config/ppqka/ppqka_config.lua`
+- `config/ppqka_config.lua`
 
 Then run:
 

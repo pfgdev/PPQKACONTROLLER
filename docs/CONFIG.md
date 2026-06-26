@@ -2,10 +2,10 @@
 
 The config format is a Lua file that returns a table.
 
-The manager loads user-owned config first:
+The manager loads user-owned config first from MacroQuest's config directory:
 
 ```text
-config/ppqka/ppqka_config.lua
+<mq.configDir>/ppqka_config.lua
 ```
 
 If that file is missing, it falls back to the bundled example:
@@ -13,6 +13,8 @@ If that file is missing, it falls back to the bundled example:
 ```text
 lua/ppqka/config/ppqka_config_example.lua
 ```
+
+For compatibility, the manager also checks the older `<mq.configDir>/ppqka/ppqka_config.lua` path before falling back to the bundled example.
 
 The bundled example is safe to overwrite during controller updates. The user-owned config should not be overwritten by controller updates.
 

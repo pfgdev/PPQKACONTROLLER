@@ -26,9 +26,10 @@ try {
         'lua/ppqka/config/ppqka_config_example.lua'
     )
 
-    $localConfig = 'config/ppqka/ppqka_config.lua'
-    if (Test-Path -LiteralPath $localConfig) {
-        $files += $localConfig
+    foreach ($localConfig in @('config/ppqka_config.lua', 'config/ppqka/ppqka_config.lua')) {
+        if (Test-Path -LiteralPath $localConfig) {
+            $files += $localConfig
+        }
     }
 
     $lua = @"

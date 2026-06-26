@@ -2,10 +2,6 @@ local mq = require('mq')
 require('ImGui')
 
 local SCRIPT_NAME = 'PPQKissAssistManager'
-local USER_CONFIG_PATHS = {
-  'config/ppqka/ppqka_config.lua',
-  'Config/ppqka/ppqka_config.lua',
-}
 local EXAMPLE_CONFIG_MODULE = 'ppqka.config.ppqka_config_example'
 local REPORTER_SCRIPT = 'ppqka/ppq_ka_reporter'
 local REPORTER_VARIABLE = 'PPQKA_Status'
@@ -97,10 +93,26 @@ local function loadConfigFromPath(path)
   return true, result
 end
 
+local function userConfigPaths()
+  local paths = {}
+
+  if mq.configDir and mq.configDir ~= '' then
+    table.insert(paths, mq.configDir .. '/ppqka_config.lua')
+    table.insert(paths, mq.configDir .. '/ppqka/ppqka_config.lua')
+  end
+
+  table.insert(paths, 'config/ppqka_config.lua')
+  table.insert(paths, 'Config/ppqka_config.lua')
+  table.insert(paths, 'config/ppqka/ppqka_config.lua')
+  table.insert(paths, 'Config/ppqka/ppqka_config.lua')
+
+  return paths
+end
+
 local function loadConfig()
   local errors = {}
 
-  for _, path in ipairs(USER_CONFIG_PATHS) do
+  for _, path in ipairs(userConfigPaths()) do
     local ok, loaded = loadConfigFromPath(path)
 
     if ok then
