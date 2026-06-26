@@ -1,6 +1,20 @@
 # Config
 
-The first config format is a Lua module that returns a table.
+The config format is a Lua file that returns a table.
+
+The manager loads user-owned config first:
+
+```text
+config/ppqka/ppqka_config.lua
+```
+
+If that file is missing, it falls back to the bundled example:
+
+```text
+lua/ppqka/config/ppqka_config_example.lua
+```
+
+The bundled example is safe to overwrite during controller updates. The user-owned config should not be overwritten by controller updates.
 
 Sample:
 
@@ -24,9 +38,6 @@ return {
     loadout_start_spacing_ms = 750,
   },
   profiles = {
-    essek = {
-      ice_nukes = { label = 'Wizard Ice Nukes', ini = 'KissAssist_Essek_IceNukes.ini', assist = 'Grog' },
-    },
     shadow = {
       default = { label = 'default', ini = 'KissAssist_Shadow.ini' },
       solo = { label = 'solo', ini = 'KissAssist_Shadow_Solo.ini' },
@@ -35,9 +46,6 @@ return {
   active_profiles = {
     shadow = 'default',
   },
-  active_assists = {
-    shadow = 'Nandladin',
-  },
   character_meta = {
     shadow = { class = 'RNG', class_color = '#b6e07a' },
   },
@@ -45,13 +53,12 @@ return {
     {
       key = 'g1_normal',
       label = 'Group 1 - Normal',
-      assist = 'Nandladin',
+      assist_policy = { mode = 'group_ma', fallback = 'Nandladin' },
       characters = {
         boomkenzie = 'default',
         lagspike = 'default',
         nandarie = 'default',
         shadow = 'default',
-        essek = { profile = 'ice_nukes', assist = 'Grog' },
       },
     },
   },
@@ -87,13 +94,9 @@ Local saved active profile key by character name. This means "the profile this m
 
 Applying a staged profile target updates this value in memory for the running script and restarts KissAssist on that character with the selected profile. It does not write the config file back to disk yet.
 
-`active_assists`
-
-Local saved assist target by character name. This has the same limitation as `active_profiles`: the manager updates it in memory for commands it sends, but it does not yet write the config file back to disk or prove the live KissAssist assist target.
-
 `profiles`
 
-Profile choices by character name. Each profile has a key, display label, KissAssist INI filename, and optional assist target.
+Profile choices by character name. Each profile has a key, display label, and KissAssist INI filename.
 
 `characters`
 
@@ -143,13 +146,6 @@ profiles = {
     default = { label = 'default', ini = 'KissAssist_Shadow.ini' },
     solo = { label = 'solo', ini = 'KissAssist_Shadow_Solo.ini' },
   },
-  essek = {
-    ice_nukes = {
-      label = 'Wizard Ice Nukes',
-      ini = 'KissAssist_Essek_IceNukes.ini',
-      assist = 'Grog',
-    },
-  },
 }
 ```
 
@@ -163,24 +159,21 @@ active_profiles = {
 
 Later, when the UI can launch KissAssist, this active profile should decide which INI is loaded.
 
-Profile-level `assist` is optional. If present, it is used when that profile is loaded unless a loadout character entry overrides it.
-
 ## Loadout Fields
 
 Loadouts are explicit character-to-profile mappings:
 
 ```lua
 loadouts = {
-  {
-    key = 'g1_normal',
-    label = 'Group 1 - Normal',
-    assist = 'Nandladin',
-    characters = {
+    {
+      key = 'g1_normal',
+      label = 'Group 1 - Normal',
+      assist_policy = { mode = 'group_ma', fallback = 'Nandladin' },
+      characters = {
       boomkenzie = 'default',
       lagspike = 'default',
       nandarie = 'default',
       shadow = 'default',
-      essek = { profile = 'ice_nukes', assist = 'Grog' },
     },
   },
 }
@@ -196,28 +189,34 @@ UI label shown in the loadout dropdown.
 
 `assist`
 
-Default main assist used when loading this loadout.
+Legacy/simple default main assist used when loading this loadout. Prefer `assist_policy` for new loadouts.
+
+`assist_policy`
+
+Optional assist policy used when loading this loadout:
+
+```lua
+assist_policy = { mode = 'group_ma', fallback = 'Nandladin' }
+assist_policy = { mode = 'raid_ma', fallback = 'Nandladin' }
+assist_policy = { mode = 'character', character = 'Grog' }
+```
+
+The header `Assist` dropdown can temporarily override this policy before Apply.
 
 `characters`
 
-Map of lower-case character names to profile targets. The simple form is a profile key:
+Map of lower-case character names to profile keys:
 
 ```lua
 shadow = 'default'
-```
-
-The expanded form can override assist for one character:
-
-```lua
-essek = { profile = 'ice_nukes', assist = 'Grog' }
 ```
 
 Characters not listed are visible in the status table but are not affected when the loadout is staged and applied.
 
 Assist resolution order is:
 
-1. Loadout character entry `assist`
-2. Profile `assist`
+1. Header assist override, if selected
+2. Loadout `assist_policy`
 3. Loadout `assist`
 4. Top-level config `assist`
 

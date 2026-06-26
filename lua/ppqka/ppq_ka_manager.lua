@@ -2,7 +2,11 @@ local mq = require('mq')
 require('ImGui')
 
 local SCRIPT_NAME = 'PPQKissAssistManager'
-local CONFIG_MODULE = 'ppqka.config.ppq_g1'
+local USER_CONFIG_PATHS = {
+  'config/ppqka/ppqka_config.lua',
+  'Config/ppqka/ppqka_config.lua',
+}
+local EXAMPLE_CONFIG_MODULE = 'ppqka.config.ppqka_config_example'
 local REPORTER_SCRIPT = 'ppqka/ppq_ka_reporter'
 local REPORTER_VARIABLE = 'PPQKA_Status'
 
@@ -12,10 +16,16 @@ local shouldDraw = true
 local showDebug = false
 local selectedLoadoutKey = nil
 local targetLoadoutModified = false
+local targetAssistPolicy = nil
+local currentAssistPolicy = nil
+local Assist = {}
 local LOADOUT_NONE_KEY = '__none__'
 local LOADOUT_UNLOAD_KEY = '__unload_all__'
+local ASSIST_SOURCE_MODIFIED = 'modified'
+local ASSIST_SOURCE_ALL_ACTIVE = 'all_active'
 local pendingChanges = {}
 local inFlightChanges = {}
+local assistApplySource = ASSIST_SOURCE_MODIFIED
 local dryRunLog = {}
 local commandQueue = {}
 local rapidStatus = {
@@ -48,6 +58,7 @@ local LOADOUT_MANAGE_WIDTH = 244.0
 local LOADOUT_CLEAR_WIDTH = 64.0
 local LOADOUT_APPLY_WIDTH = 172.0
 local GROUP_HEADER_HEIGHT = 30.0
+local COMBO_POPUP_MAX_ROWS = 10
 local ROW_TEXT_Y_NUDGE = 0.0
 local GROUP_HEADER_TEXT_Y_NUDGE = 0.0
 local ROW_FRAME_Y_NUDGE = 0.0
@@ -70,14 +81,52 @@ local groupFirstSeenCounter = 0
 local reporterStarted = {}
 local statusObservers = {}
 
-local ok, configOrError = pcall(require, CONFIG_MODULE)
+local function loadConfigFromPath(path)
+  local chunk, loadError = loadfile(path)
+
+  if not chunk then
+    return false, loadError
+  end
+
+  local ok, result = pcall(chunk)
+
+  if not ok then
+    return false, result
+  end
+
+  return true, result
+end
+
+local function loadConfig()
+  local errors = {}
+
+  for _, path in ipairs(USER_CONFIG_PATHS) do
+    local ok, loaded = loadConfigFromPath(path)
+
+    if ok then
+      return true, loaded, path
+    end
+
+    table.insert(errors, path .. ': ' .. tostring(loaded))
+  end
+
+  local ok, loaded = pcall(require, EXAMPLE_CONFIG_MODULE)
+
+  if ok then
+    return true, loaded, EXAMPLE_CONFIG_MODULE .. ' (example)'
+  end
+
+  table.insert(errors, EXAMPLE_CONFIG_MODULE .. ': ' .. tostring(loaded))
+  return false, table.concat(errors, ' | '), 'none'
+end
+
+local ok, configOrError, configSource = loadConfig()
 local config = ok and configOrError or {
   name = 'Config failed to load',
   assist = '',
   groups = {},
   display_groups = {},
   active_profiles = {},
-  active_assists = {},
   loadouts = {},
   character_meta = {},
   command_timing = {},
@@ -87,7 +136,9 @@ local config = ok and configOrError or {
 }
 
 if not ok then
-  print(string.format('[%s] Failed to load %s: %s', SCRIPT_NAME, CONFIG_MODULE, tostring(configOrError)))
+  print(string.format('[%s] Failed to load config: %s', SCRIPT_NAME, tostring(configOrError)))
+else
+  print(string.format('[%s] Loaded config from %s', SCRIPT_NAME, tostring(configSource)))
 end
 
 local function safeTlo(label, getter, fallback)
@@ -349,6 +400,7 @@ local function clearReporterStatus(status, age)
   status.group_members = '0'
   status.group_leader = nil
   status.group_main_assist = nil
+  status.raid_main_assist = nil
   status.group_roster = {}
   status.query_ok = false
 end
@@ -383,6 +435,16 @@ local function characterConfigKey(characterName)
   return string.lower(characterName or '')
 end
 
+local function visiblePeerMap()
+  local peers = {}
+
+  for _, peer in ipairs(allDisplayPeers()) do
+    peers[characterConfigKey(peer)] = peer
+  end
+
+  return peers
+end
+
 local function profileEntriesFor(characterName)
   local characterKey = string.lower(characterName or '')
   local profiles = config.profiles or {}
@@ -392,12 +454,10 @@ local function profileEntriesFor(characterName)
   for key, profile in pairs(characterProfiles) do
     local label = key
     local ini = ''
-    local assist = nil
 
     if type(profile) == 'table' then
       label = profile.label or key
       ini = profile.ini or ''
-      assist = profile.assist
     elseif type(profile) == 'string' then
       ini = profile
     end
@@ -406,7 +466,6 @@ local function profileEntriesFor(characterName)
       key = key,
       label = label,
       ini = ini,
-      assist = assist,
     })
   end
 
@@ -421,20 +480,6 @@ local function selectedProfileKeyFor(characterName)
   local characterKey = characterConfigKey(characterName)
   local activeProfiles = config.active_profiles or {}
   return activeProfiles[characterName] or activeProfiles[characterKey]
-end
-
-local function activeAssistFor(characterName)
-  local characterKey = characterConfigKey(characterName)
-  local activeAssists = config.active_assists or {}
-  return activeAssists[characterName] or activeAssists[characterKey]
-end
-
-local function sameAssist(left, right)
-  if not left or left == '' or not right or right == '' then
-    return false
-  end
-
-  return string.lower(tostring(left)) == string.lower(tostring(right))
 end
 
 local function profileForKey(characterName, profileKey)
@@ -455,7 +500,6 @@ local function profileForKey(characterName, profileKey)
       key = profileKey,
       label = profile.label or profileKey,
       ini = profile.ini or 'unknown',
-      assist = profile.assist,
     }
   end
 
@@ -552,23 +596,20 @@ local function selectedLoadout()
   }
 end
 
-local function loadoutCharacterEntries(loadout)
+local function loadoutCharacterEntries(loadout, visibleOnly)
   local entries = {}
+  local visiblePeers = visibleOnly and visiblePeerMap() or nil
 
-  for characterName, target in pairs((loadout and loadout.characters) or {}) do
-    local profileKey = target
-    local assist = nil
+  for characterName, profileKey in pairs((loadout and loadout.characters) or {}) do
+    local characterKey = characterConfigKey(characterName)
+    local visibleName = visiblePeers and visiblePeers[characterKey] or nil
 
-    if type(target) == 'table' then
-      profileKey = target.profile or target.key or target[1]
-      assist = target.assist
+    if not visibleOnly or visibleName then
+      table.insert(entries, {
+        character = visibleName or characterName,
+        profile = profileKey,
+      })
     end
-
-    table.insert(entries, {
-      character = characterName,
-      profile = profileKey,
-      assist = assist,
-    })
   end
 
   table.sort(entries, function(left, right)
@@ -578,9 +619,208 @@ local function loadoutCharacterEntries(loadout)
   return entries
 end
 
-local function assistForTarget(characterName, profileKey, loadout, entryAssist)
-  local profile = profileForKey(characterName, profileKey)
-  return entryAssist or profile.assist or (loadout and loadout.assist) or config.assist
+function Assist.fallbackName()
+  if type(config.assist) == 'table' then
+    return config.assist.fallback or config.assist.character or config.assist.name or ''
+  end
+
+  return tostring(config.assist or '')
+end
+
+function Assist.normalizePolicy(policy)
+  if type(policy) == 'table' then
+    local mode = policy.mode or policy.kind or 'character'
+
+    if mode == 'character' then
+      return {
+        mode = 'character',
+        character = policy.character or policy.name or policy.assist or Assist.fallbackName(),
+        fallback = policy.fallback or Assist.fallbackName(),
+      }
+    end
+
+    return {
+      mode = mode,
+      fallback = policy.fallback or Assist.fallbackName(),
+    }
+  end
+
+  if policy == 'group_ma' then
+    return {
+      mode = 'group_ma',
+      fallback = Assist.fallbackName(),
+    }
+  end
+
+  if policy == 'raid_ma' then
+    return {
+      mode = 'raid_ma',
+      fallback = Assist.fallbackName(),
+    }
+  end
+
+  if policy and tostring(policy) ~= '' then
+    return {
+      mode = 'character',
+      character = tostring(policy),
+      fallback = Assist.fallbackName(),
+    }
+  end
+
+  return {
+    mode = 'character',
+    character = Assist.fallbackName(),
+    fallback = Assist.fallbackName(),
+  }
+end
+
+function Assist.loadoutPolicy(loadout)
+  return Assist.normalizePolicy((loadout and (loadout.assist_policy or loadout.assist)) or config.assist)
+end
+
+function Assist.currentBaseline()
+  return currentAssistPolicy or Assist.loadoutPolicy(selectedLoadout())
+end
+
+function Assist.selectedLoadoutHasPolicy()
+  local loadout = selectedLoadout()
+  return loadout and loadout.kind ~= 'none' and loadout.kind ~= 'unload'
+end
+
+function Assist.selectedLoadoutCanUse()
+  local loadout = selectedLoadout()
+
+  if not loadout then
+    return true
+  end
+
+  return loadout.kind ~= 'unload'
+end
+
+function Assist.selectionBaseline()
+  if Assist.selectedLoadoutHasPolicy() then
+    return Assist.loadoutPolicy(selectedLoadout())
+  end
+
+  return Assist.currentBaseline()
+end
+
+function Assist.effectivePolicy()
+  if targetAssistPolicy then
+    return targetAssistPolicy
+  end
+
+  if Assist.selectedLoadoutHasPolicy() then
+    return Assist.loadoutPolicy(selectedLoadout())
+  end
+
+  return Assist.currentBaseline()
+end
+
+function Assist.policyLabel(policy)
+  local normalized = Assist.normalizePolicy(policy)
+
+  if normalized.mode == 'group_ma' then
+    return 'Group MA'
+  end
+
+  if normalized.mode == 'raid_ma' then
+    return 'Raid MA'
+  end
+
+  return normalized.character or normalized.fallback or 'Unknown'
+end
+
+function Assist.policiesEquivalent(left, right)
+  local leftPolicy = Assist.normalizePolicy(left)
+  local rightPolicy = Assist.normalizePolicy(right)
+
+  if leftPolicy.mode ~= rightPolicy.mode then
+    return false
+  end
+
+  if leftPolicy.mode == 'character' then
+    return characterConfigKey(leftPolicy.character) == characterConfigKey(rightPolicy.character)
+  end
+
+  return characterConfigKey(leftPolicy.fallback) == characterConfigKey(rightPolicy.fallback)
+end
+
+function Assist.resolveForCharacter(characterName, policy)
+  local normalized = Assist.normalizePolicy(policy)
+  local status = statusCache[characterName] or statusCache[characterConfigKey(characterName)] or {}
+
+  if normalized.mode == 'group_ma' then
+    return cleanReportedText(status.group_main_assist) or normalized.fallback or Assist.fallbackName()
+  end
+
+  if normalized.mode == 'raid_ma' then
+    return cleanReportedText(status.raid_main_assist) or normalized.fallback or Assist.fallbackName()
+  end
+
+  return normalized.character or normalized.fallback or Assist.fallbackName()
+end
+
+function Assist.rawOverrideActive()
+  return Assist.selectedLoadoutCanUse()
+    and targetAssistPolicy ~= nil
+    and not Assist.policiesEquivalent(targetAssistPolicy, Assist.selectionBaseline())
+end
+
+function Assist.sourceLabel()
+  if assistApplySource == ASSIST_SOURCE_ALL_ACTIVE then
+    return 'Apply to all active KA'
+  end
+
+  return 'Apply to modified behaviors'
+end
+
+function Assist.characterOptions()
+  local seen = {}
+  local entries = {}
+
+  local function displayNameFor(name)
+    local cleanName = cleanTloName(name)
+
+    if not cleanName then
+      return nil
+    end
+
+    return cleanName:sub(1, 1):upper() .. cleanName:sub(2)
+  end
+
+  local function add(name)
+    local cleanName = displayNameFor(name)
+
+    if not cleanName then
+      return
+    end
+
+    local key = characterConfigKey(cleanName)
+
+    if seen[key] then
+      return
+    end
+
+    seen[key] = true
+    table.insert(entries, cleanName)
+  end
+
+  add(Assist.fallbackName())
+
+  for characterName in pairs(config.character_meta or {}) do
+    add(characterName)
+  end
+
+  for _, peer in ipairs(allDisplayPeers()) do
+    add(peer)
+  end
+
+  table.sort(entries, function(left, right)
+    return string.lower(left) < string.lower(right)
+  end)
+
+  return entries
 end
 
 local function isLocalPeer(characterName)
@@ -632,6 +872,9 @@ local function readLocalMacroStatus()
     end, ''),
     group_main_assist = safeTlo('Group.MainAssist.Name', function()
       return mq.TLO.Group.MainAssist.Name()
+    end, ''),
+    raid_main_assist = safeTlo('Raid.MainAssist.Name', function()
+      return mq.TLO.Raid.MainAssist.Name()
     end, ''),
     group_roster = readLocalGroupRoster(groupMembers),
     query_ok = true,
@@ -744,6 +987,7 @@ local function applyReporterPayload(status, payload)
   status.group_members = cleanReportedText(report.group_members) or '0'
   status.group_leader = cleanReportedText(report.leader)
   status.group_main_assist = cleanReportedText(report.ma)
+  status.raid_main_assist = cleanReportedText(report.rma)
   status.group_roster = rosterFromReporter(report)
   status.group_read_at = os.time()
   status.read_at = os.time()
@@ -786,6 +1030,7 @@ local function submitPeerStatusQueries(peer)
       cached.group_members = localStatus.group_members
       cached.group_leader = localStatus.group_leader
       cached.group_main_assist = localStatus.group_main_assist
+      cached.raid_main_assist = localStatus.raid_main_assist
       cached.group_roster = localStatus.group_roster
       cached.query_ok = localStatus.query_ok
     end
@@ -847,6 +1092,7 @@ local function updatePeerStatusFromQueries(peer)
       cached.group_members = localStatus.group_members
       cached.group_leader = localStatus.group_leader
       cached.group_main_assist = localStatus.group_main_assist
+      cached.raid_main_assist = localStatus.raid_main_assist
       cached.group_roster = localStatus.group_roster
       cached.query_ok = localStatus.query_ok
     end
@@ -1151,9 +1397,8 @@ end
 
 currentGroupViews = actualGroupViews
 
-local function targetMatchesCurrent(characterName, kind, profileKey, assist)
+local function targetMatchesCurrent(characterName, kind, profileKey)
   local status = statusFor(characterName)
-  local activeAssist = activeAssistFor(characterName)
 
   if status == 'inactive' and kind == 'manual' then
     return true
@@ -1163,19 +1408,11 @@ local function targetMatchesCurrent(characterName, kind, profileKey, assist)
     local reportedProfile = profileForIni(characterName, (statusCache[characterName] or {}).kiss_ini)
 
     if reportedProfile and reportedProfile.key == profileKey then
-      if activeAssist and assist and not sameAssist(activeAssist, assist) then
-        return false
-      end
-
       return true
     end
   end
 
   if (status == 'active' or status == 'paused') and kind == 'profile' and selectedProfileKeyFor(characterName) == profileKey then
-    if activeAssist and assist and not sameAssist(activeAssist, assist) then
-      return false
-    end
-
     return true
   end
 
@@ -1505,6 +1742,98 @@ local function clearTargetSelection()
   clearPendingChanges()
   selectedLoadoutKey = LOADOUT_NONE_KEY
   targetLoadoutModified = false
+  targetAssistPolicy = nil
+end
+
+local function currentProfileKeyForAssistReload(characterName)
+  local status = statusFor(characterName)
+
+  if status ~= 'active' and status ~= 'paused' then
+    return nil
+  end
+
+  local reportedProfile = profileForIni(characterName, (statusCache[characterName] or {}).kiss_ini)
+
+  if reportedProfile and reportedProfile.key then
+    return reportedProfile.key
+  end
+
+  return selectedProfileKeyFor(characterName)
+end
+
+function Assist.pendingProfileChangeExists()
+  for _, change in pairs(pendingChanges) do
+    if change.kind == 'profile' then
+      return true
+    end
+  end
+
+  return false
+end
+
+function Assist.overrideHasProfileWork()
+  if Assist.pendingProfileChangeExists() then
+    return true
+  end
+
+  if assistApplySource ~= ASSIST_SOURCE_ALL_ACTIVE then
+    return false
+  end
+
+  for _, peer in ipairs(allDisplayPeers()) do
+    if currentProfileKeyForAssistReload(peer) then
+      return true
+    end
+  end
+
+  return false
+end
+
+function Assist.overrideActive()
+  return Assist.rawOverrideActive() and Assist.overrideHasProfileWork()
+end
+
+local function assistAffectedProfileEntries()
+  local entries = {}
+
+  if not Assist.overrideActive() then
+    return entries
+  end
+
+  if assistApplySource ~= ASSIST_SOURCE_ALL_ACTIVE then
+    return entries
+  end
+
+  for _, peer in ipairs(allDisplayPeers()) do
+    local key = characterConfigKey(peer)
+
+    if not pendingChanges[key] then
+      local profileKey = currentProfileKeyForAssistReload(peer)
+
+      if profileKey then
+        table.insert(entries, {
+          character = peer,
+          kind = 'profile',
+          profile = profileKey,
+          assist_only = true,
+        })
+      end
+    end
+  end
+
+  return entries
+end
+
+local function assistAffectsCharacter(characterName)
+  local characterKey = characterConfigKey(characterName)
+
+  for _, entry in ipairs(assistAffectedProfileEntries()) do
+    if characterConfigKey(entry.character) == characterKey then
+      return true
+    end
+  end
+
+  return false
 end
 
 local function pendingChangeCount()
@@ -1514,7 +1843,7 @@ local function pendingChangeCount()
     count = count + 1
   end
 
-  return count
+  return count + #assistAffectedProfileEntries()
 end
 
 local function markTargetModified()
@@ -1542,8 +1871,8 @@ local function stageManualTarget(characterName)
   return true
 end
 
-local function stageProfileTarget(characterName, profileKey, assist)
-  if targetMatchesCurrent(characterName, 'profile', profileKey, assist) then
+local function stageProfileTarget(characterName, profileKey)
+  if targetMatchesCurrent(characterName, 'profile', profileKey) then
     clearPendingChange(characterName)
     return false
   end
@@ -1552,7 +1881,6 @@ local function stageProfileTarget(characterName, profileKey, assist)
     character = characterName,
     kind = 'profile',
     profile = profileKey,
-    assist = assist,
   }
   inFlightChanges[characterConfigKey(characterName)] = nil
 
@@ -1576,11 +1904,11 @@ local function stageLoadout(loadout)
     return stageUnloadLoadout(loadout)
   end
 
-  local entries = loadoutCharacterEntries(loadout)
+  local entries = loadoutCharacterEntries(loadout, true)
   local stagedCount = 0
 
   for _, entry in ipairs(entries) do
-    if stageProfileTarget(entry.character, entry.profile, assistForTarget(entry.character, entry.profile, loadout, entry.assist)) then
+    if stageProfileTarget(entry.character, entry.profile) then
       stagedCount = stagedCount + 1
     end
   end
@@ -1591,7 +1919,7 @@ end
 
 stageUnloadLoadout = function(loadout)
   local stagedCount = 0
-  local entries = loadoutCharacterEntries(loadout)
+  local entries = loadoutCharacterEntries(loadout, true)
 
   if #entries == 0 then
     for _, peer in ipairs(allDisplayPeers()) do
@@ -1617,6 +1945,7 @@ local function selectTargetLoadout(loadout)
 
   selectedLoadoutKey = targetKey
   targetLoadoutModified = false
+  targetAssistPolicy = nil
   clearPendingChanges()
 
   if loadout and loadout.kind ~= 'none' then
@@ -1631,10 +1960,17 @@ end
 local function applyPendingChanges()
   local entries = {}
   local targets = {}
+  local assistPolicy = Assist.effectivePolicy()
+  local applyingUnloadAll = selectedLoadout().kind == 'unload'
 
   for key, change in pairs(pendingChanges) do
     table.insert(entries, change)
     targets[key] = true
+  end
+
+  for _, change in ipairs(assistAffectedProfileEntries()) do
+    table.insert(entries, change)
+    targets[characterConfigKey(change.character)] = true
   end
 
   if #entries == 0 then
@@ -1651,6 +1987,7 @@ local function applyPendingChanges()
   local endSpacingMs = timingValue('loadout_end_spacing_ms', DEFAULT_LOADOUT_END_SPACING_MS)
   local startSpacingMs = timingValue('loadout_start_spacing_ms', DEFAULT_LOADOUT_START_SPACING_MS)
   local restartDelayMs = timingValue('end_to_start_delay_ms', DEFAULT_END_TO_START_DELAY_MS)
+  local appliedProfileCount = 0
 
   for index, change in ipairs(entries) do
     local endDelayMs = (index - 1) * endSpacingMs
@@ -1658,18 +1995,15 @@ local function applyPendingChanges()
 
     if change.kind == 'manual' then
       markInFlightChange(change)
-      config.active_assists = config.active_assists or {}
-      config.active_assists[characterKey] = nil
       enqueueCommand(string.format('/dex %s /end', change.character), endDelayMs, change.character)
     elseif change.kind == 'profile' then
+      appliedProfileCount = appliedProfileCount + 1
       config.active_profiles[characterKey] = change.profile
-      config.active_assists = config.active_assists or {}
-      config.active_assists[characterKey] = change.assist or config.assist
       markInFlightChange(change)
       loadCharacterProfile(
         change.character,
         profileForKey(change.character, change.profile),
-        change.assist or config.assist,
+        Assist.resolveForCharacter(change.character, assistPolicy),
         endDelayMs,
         restartDelayMs + ((index - 1) * startSpacingMs)
       )
@@ -1677,6 +2011,13 @@ local function applyPendingChanges()
   end
 
   logAction('APPLY', 'Applied ' .. tostring(#entries) .. ' pending changes')
+
+  if appliedProfileCount > 0 then
+    currentAssistPolicy = assistPolicy
+  elseif applyingUnloadAll then
+    currentAssistPolicy = nil
+  end
+
   beginRapidStatusRefresh(entries, 1)
   clearTargetSelection()
 end
@@ -1843,6 +2184,155 @@ local function drawPendingActionButtons(changeCount)
   end
 end
 
+local function setNextComboPopupHeight(maxRows)
+  local style = ImGui.GetStyle()
+  local rowHeight = ImGui.GetTextLineHeightWithSpacing()
+  local paddingY = style.WindowPadding and style.WindowPadding.y or 8.0
+  ImGui.SetNextWindowSizeConstraints(0, 0, 10000, (rowHeight * maxRows) + (paddingY * 2))
+end
+
+local function targetAssistPreview()
+  if not Assist.selectedLoadoutCanUse() then
+    return 'Inherit Loadout Assist'
+  end
+
+  if targetAssistPolicy then
+    if Assist.selectedLoadoutHasPolicy()
+      and Assist.policiesEquivalent(targetAssistPolicy, Assist.loadoutPolicy(selectedLoadout())) then
+      return 'Inherit Loadout Assist'
+    end
+
+    return Assist.policyLabel(targetAssistPolicy)
+  end
+
+  return 'Inherit Loadout Assist'
+end
+
+local function drawAssistPolicyDropdown()
+  ImGui.SetNextItemWidth(LOADOUT_COMBO_WIDTH)
+
+  if not Assist.selectedLoadoutCanUse() then
+    ImGui.Text('Inherit Loadout Assist')
+    return
+  end
+
+  setNextComboPopupHeight(COMBO_POPUP_MAX_ROWS)
+
+  if ImGui.BeginCombo('##assist_policy_selector', targetAssistPreview()) then
+    local visiblePolicy = targetAssistPolicy or (Assist.selectedLoadoutHasPolicy() and Assist.loadoutPolicy(selectedLoadout()) or nil)
+    local inheritedPolicy = Assist.loadoutPolicy(selectedLoadout())
+    local inheritSelected = targetAssistPolicy == nil
+    local inheritPending = Assist.selectedLoadoutHasPolicy()
+      and targetAssistPolicy
+      and Assist.policiesEquivalent(targetAssistPolicy, inheritedPolicy)
+    local _, inheritClicked = ImGui.Selectable('Inherit Loadout Assist', inheritSelected)
+
+    if inheritClicked then
+      targetAssistPolicy = nil
+    end
+
+    if inheritSelected or inheritPending then
+      ImGui.SetItemDefaultFocus()
+    end
+
+    local groupSelected = visiblePolicy and visiblePolicy.mode == 'group_ma'
+    local _, groupClicked = ImGui.Selectable('Group MA', groupSelected)
+
+    if groupClicked then
+      local policy = {
+        mode = 'group_ma',
+        fallback = Assist.fallbackName(),
+      }
+
+      if Assist.selectedLoadoutHasPolicy() and Assist.policiesEquivalent(policy, inheritedPolicy) then
+        targetAssistPolicy = nil
+      else
+        targetAssistPolicy = policy
+      end
+    end
+
+    local raidSelected = visiblePolicy and visiblePolicy.mode == 'raid_ma'
+    local _, raidClicked = ImGui.Selectable('Raid MA', raidSelected)
+
+    if raidClicked then
+      local policy = {
+        mode = 'raid_ma',
+        fallback = Assist.fallbackName(),
+      }
+
+      if Assist.selectedLoadoutHasPolicy() and Assist.policiesEquivalent(policy, inheritedPolicy) then
+        targetAssistPolicy = nil
+      else
+        targetAssistPolicy = policy
+      end
+    end
+
+    local _, separatorClicked = ImGui.Selectable('-----##assist_separator', false)
+
+    if separatorClicked then
+      targetAssistPolicy = nil
+    end
+
+    for _, characterName in ipairs(Assist.characterOptions()) do
+      local characterSelected = visiblePolicy
+        and visiblePolicy.mode == 'character'
+        and characterConfigKey(visiblePolicy.character) == characterConfigKey(characterName)
+      local _, characterClicked = ImGui.Selectable(tostring(characterName), characterSelected)
+
+      if characterClicked then
+        local policy = {
+          mode = 'character',
+          character = characterName,
+          fallback = Assist.fallbackName(),
+        }
+
+        if Assist.selectedLoadoutHasPolicy() and Assist.policiesEquivalent(policy, inheritedPolicy) then
+          targetAssistPolicy = nil
+        else
+          targetAssistPolicy = policy
+        end
+      end
+    end
+
+    ImGui.EndCombo()
+  end
+
+  if Assist.overrideActive() then
+    ImGui.SameLine()
+
+    if ImGui.Button('X##clear_assist_policy', ImVec2(24.0, 0)) then
+      targetAssistPolicy = nil
+    end
+  end
+end
+
+local function drawAssistSourceDropdown()
+  ImGui.SetNextItemWidth(LOADOUT_COMBO_WIDTH)
+  setNextComboPopupHeight(COMBO_POPUP_MAX_ROWS)
+
+  if ImGui.BeginCombo('##assist_source_selector', Assist.sourceLabel()) then
+    local modifiedSelected = assistApplySource == ASSIST_SOURCE_MODIFIED
+    local _, modifiedClicked = ImGui.Selectable('Apply to modified behaviors', modifiedSelected)
+
+    if modifiedClicked then
+      assistApplySource = ASSIST_SOURCE_MODIFIED
+    end
+
+    if modifiedSelected then
+      ImGui.SetItemDefaultFocus()
+    end
+
+    local activeSelected = assistApplySource == ASSIST_SOURCE_ALL_ACTIVE
+    local _, activeClicked = ImGui.Selectable('Apply to all active KA', activeSelected)
+
+    if activeClicked then
+      assistApplySource = ASSIST_SOURCE_ALL_ACTIVE
+    end
+
+    ImGui.EndCombo()
+  end
+end
+
 local function drawLoadoutControls()
   local entries = loadoutEntries()
   local loadout = selectedLoadout()
@@ -1885,6 +2375,7 @@ local function drawLoadoutControls()
       ImGui.Text('none configured')
     else
       ImGui.SetNextItemWidth(LOADOUT_COMBO_WIDTH)
+      setNextComboPopupHeight(COMBO_POPUP_MAX_ROWS)
 
       if ImGui.BeginCombo('##loadout_selector', loadoutPreview) then
         for _, entry in ipairs(entries) do
@@ -1899,6 +2390,30 @@ local function drawLoadoutControls()
         ImGui.EndCombo()
       end
     end
+
+    ImGui.TableNextColumn()
+    ImGui.Text('')
+
+    ImGui.TableNextRow()
+    ImGui.TableNextColumn()
+    ImGui.AlignTextToFramePadding()
+    local assistStartX = ImGui.GetCursorPosX()
+    drawMutedText('Assist')
+    ImGui.SameLine()
+    ImGui.SetCursorPosX(assistStartX + LOADOUT_LABEL_WIDTH)
+    drawAssistPolicyDropdown()
+
+    ImGui.TableNextColumn()
+    ImGui.Text('')
+
+    ImGui.TableNextRow()
+    ImGui.TableNextColumn()
+    ImGui.AlignTextToFramePadding()
+    local sourceStartX = ImGui.GetCursorPosX()
+    drawMutedText('Source')
+    ImGui.SameLine()
+    ImGui.SetCursorPosX(sourceStartX + LOADOUT_LABEL_WIDTH)
+    drawAssistSourceDropdown()
 
     ImGui.TableNextColumn()
     local actionStartX = ImGui.GetCursorPosX()
@@ -2002,6 +2517,22 @@ local function currentBehaviorFor(characterName)
   return 'Manual', selectedProfile, 'manual'
 end
 
+local function currentAssistTooltipText(characterName, state)
+  if state == 'manual' then
+    return 'not active'
+  end
+
+  if state ~= 'run' and state ~= 'pause' and state ~= 'change' then
+    return 'unknown'
+  end
+
+  if not currentAssistPolicy then
+    return 'unknown'
+  end
+
+  return Assist.resolveForCharacter(characterName, currentAssistPolicy) or 'unknown'
+end
+
 local function pendingChangeLabel(characterName)
   local change = pendingChangeFor(characterName)
 
@@ -2013,6 +2544,7 @@ local function drawTargetDropdown(characterName)
   local pending = pendingChangeFor(characterName)
 
   ImGui.SetNextItemWidth(-1)
+  setNextComboPopupHeight(COMBO_POPUP_MAX_ROWS)
 
   if ImGui.BeginCombo('##target_' .. characterName, pendingChangeLabel(characterName)) then
     local _, noChangeClicked = ImGui.Selectable('No Change', pending == nil)
@@ -2057,12 +2589,10 @@ local function drawTargetDropdown(characterName)
       local _, profileClicked = ImGui.Selectable(entry.label, isSelected)
 
       if profileClicked then
-        local assist = assistForTarget(characterName, entry.key, selectedLoadout())
-
-        if targetMatchesCurrent(characterName, 'profile', entry.key, assist) then
+        if targetMatchesCurrent(characterName, 'profile', entry.key) then
           clearPendingChange(characterName)
         else
-          stageProfileTarget(characterName, entry.key, assist)
+          stageProfileTarget(characterName, entry.key)
         end
 
         markTargetModified()
@@ -2150,11 +2680,12 @@ local STATUS_TABLE_WIDTH = STATUS_TABLE_CHARACTER_WIDTH
 
 local function drawStatusRow(characterName, rowIndex)
   local pending = pendingChangeFor(characterName)
+  local assistPending = assistAffectsCharacter(characterName)
   local currentBehavior, currentProfile, currentState = currentBehaviorFor(characterName)
 
   ImGui.TableNextRow(ImGuiTableRowFlags.None, STATUS_TABLE_ROW_HEIGHT)
 
-  if pending then
+  if pending or assistPending then
     ImGui.TableSetBgColor(ImGuiTableBgTarget.RowBg0, 0.34, 0.29, 0.14, 0.72)
   elseif rowIndex % 2 == 0 then
     ImGui.TableSetBgColor(ImGuiTableBgTarget.RowBg0, 0.12, 0.14, 0.17, 0.45)
@@ -2164,14 +2695,14 @@ local function drawStatusRow(characterName, rowIndex)
 
   ImGui.TableNextColumn()
   alignTextToRowHeight(STATUS_TABLE_ROW_HEIGHT)
-  drawCharacterCell(characterName, pending)
+  drawCharacterCell(characterName, pending or assistPending)
 
   ImGui.TableNextColumn()
   alignTextToRowHeight(STATUS_TABLE_ROW_HEIGHT)
   drawBehaviorWithDot(currentBehavior, currentState)
 
   if ImGui.IsItemHovered() then
-    ImGui.SetTooltip(currentProfile.ini)
+    ImGui.SetTooltip(tostring(currentProfile.ini) .. '\nAssist: ' .. currentAssistTooltipText(characterName, currentState))
   end
 
   ImGui.TableNextColumn()
@@ -2471,6 +3002,8 @@ local function drawDanNetDiscovery()
     ImGui.SameLine(360)
     ImGui.Text('MA: ' .. tostring(status.group_main_assist or 'unknown'))
     ImGui.SameLine(500)
+    ImGui.Text('Raid MA: ' .. tostring(status.raid_main_assist or 'unknown'))
+    ImGui.SameLine(700)
     ImGui.Text('Ungroup reads: ' .. tostring(groupState.ungrouped_reads or 0))
     ImGui.TextWrapped('Roster: ' .. formatRoster(status.group_roster))
 
@@ -2490,6 +3023,10 @@ local function render()
   end
 
   isOpen, shouldDraw = ImGui.Begin('PPQ KissAssist Manager', isOpen)
+
+  if not isOpen then
+    terminate = true
+  end
 
   if shouldDraw then
     drawStatusOverview()

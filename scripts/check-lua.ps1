@@ -20,7 +20,30 @@ if (-not $luaJitPath) {
 
 Push-Location $repoRoot
 try {
-    & $luaJitPath -e "assert(loadfile('lua/ppqka/ppq_ka_manager.lua')); assert(loadfile('lua/ppqka/config/ppq_g1.lua')); print('syntax ok')"
+    $files = @(
+        'lua/ppqka/ppq_ka_manager.lua',
+        'lua/ppqka/ppq_ka_reporter.lua',
+        'lua/ppqka/config/ppqka_config_example.lua'
+    )
+
+    $localConfig = 'config/ppqka/ppqka_config.lua'
+    if (Test-Path -LiteralPath $localConfig) {
+        $files += $localConfig
+    }
+
+    $lua = @"
+local files = {
+$($files | ForEach-Object { "  '$($_ -replace '\\', '/')'," } | Out-String)
+}
+
+for _, file in ipairs(files) do
+  assert(loadfile(file))
+end
+
+print('syntax ok')
+"@
+
+    & $luaJitPath -e $lua
 }
 finally {
     Pop-Location

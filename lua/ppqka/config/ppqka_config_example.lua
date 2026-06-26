@@ -66,6 +66,7 @@ return {
   profiles = {
     blanka = {
       default = { label = 'default', ini = 'KissAssist_Blanka.ini' },
+      normalGroup = { label = 'Normal Group', ini = 'KissAssist_Blanka_NormalGroup.ini' },
     },
     boomkenzie = {
       default = { label = 'default', ini = 'KissAssist_Boomkenzie.ini' },
@@ -75,6 +76,7 @@ return {
     },
     essek = {
       default = { label = 'default', ini = 'KissAssist_Essek.ini' },
+      fireGroup = { label = 'Fire Group', ini = 'KissAssist_Essek_FireGroup.ini' },
     },
     grog = {
       default = { label = 'default', ini = 'KissAssist_Grog.ini' },
@@ -90,6 +92,7 @@ return {
     },
     morrigan = {
       default = { label = 'default', ini = 'KissAssist_Morrigan.ini' },
+      magicGroup = { label = 'Magic Group', ini = 'KissAssist_Morrigan_MagicGroup.ini' },
     },
     nandarie = {
       default = { label = 'default', ini = 'KissAssist_Nandarie.ini' },
@@ -109,7 +112,6 @@ return {
   active_profiles = {
     blanka = 'default',
     boomkenzie = 'default',
-    buffs = 'default',
     essek = 'default',
     grog = 'default',
     kelthuzad = 'default',
@@ -120,22 +122,6 @@ return {
     nandladin = 'default',
     nodance = 'default',
     shadow = 'default',
-  },
-
-  active_assists = {
-    blanka = 'Nandladin',
-    boomkenzie = 'Nandladin',
-    buffs = 'Nandladin',
-    essek = 'Nandladin',
-    grog = 'Nandladin',
-    kelthuzad = 'Nandladin',
-    lagspike = 'Nandladin',
-    lulu = 'Nandladin',
-    morrigan = 'Nandladin',
-    nandarie = 'Nandladin',
-    nandladin = 'Nandladin',
-    nodance = 'Nandladin',
-    shadow = 'Nandladin',
   },
 
   character_meta = {
@@ -158,12 +144,24 @@ return {
     {
       key = 'g1_normal',
       label = 'Group 1 - Normal',
-      assist = 'Nandladin',
+      assist_policy = { mode = 'group_ma', fallback = 'Nandladin' },
       characters = {
         boomkenzie = 'default',
         lagspike = 'default',
         nandarie = 'default',
         shadow = 'default',
+      },
+    },
+    {
+      key = 'g2_normal',
+      label = 'Group 2 - Normal',
+      assist_policy = { mode = 'group_ma', fallback = 'Grog' },
+      characters = {
+        kelthuzad = 'default',
+        blanka = 'normalGroup',
+        lulu = 'default',
+        essek = 'default',
+        morrigan = 'default',
       },
     },
   },

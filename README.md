@@ -9,7 +9,8 @@ The goal is command amplification, not invisible automation. A manual driver can
 This repository is an initial scaffold only.
 
 - Documentation exists for the intended architecture, commands, config, and roadmap.
-- A sample PPQ Group 1 config exists at `lua/ppqka/config/ppq_g1.lua`.
+- A bundled example config exists at `lua/ppqka/config/ppqka_config_example.lua`.
+- User-owned config lives outside the Lua package at `config/ppqka/ppqka_config.lua`.
 - A minimal ImGui script exists at `lua/ppqka/ppq_ka_manager.lua`.
 - A companion reporter exists at `lua/ppqka/ppq_ka_reporter.lua`.
 - The manager auto-starts reporters on known DanNet peers and reads their published `PPQKA_Status`.
@@ -33,21 +34,29 @@ This repository is an initial scaffold only.
 |   +-- TESTING.md
 |   +-- UI_ROADMAP.md
 +-- lua/
++-- config/
+|   +-- ppqka/
+|       +-- ppqka_config.lua
++-- lua/
     +-- ppqka/
         +-- ppq_ka_manager.lua
         +-- ppq_ka_reporter.lua
         +-- config/
-            +-- ppq_g1.lua
+            +-- ppqka_config_example.lua
 ```
 
 ## MacroQuest Setup
 
-For early testing, copy or sync the contents of this repository's `lua/` folder into your MacroQuest `lua/` folder.
+For early testing, copy or sync the contents of this repository's `lua/` folder into your MacroQuest `lua/` folder. Copy your local config into MacroQuest's `config/ppqka/` folder.
 
 The controller and reporter must both be present:
 
 - `lua/ppqka/ppq_ka_manager.lua`
 - `lua/ppqka/ppq_ka_reporter.lua`
+
+Your local settings should be present at:
+
+- `config/ppqka/ppqka_config.lua`
 
 Then run:
 

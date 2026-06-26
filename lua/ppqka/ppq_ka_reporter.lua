@@ -119,13 +119,16 @@ local function buildStatus()
     ma = cleanName(safeTlo(function()
       return mq.TLO.Group.MainAssist.Name()
     end, '')),
+    rma = cleanName(safeTlo(function()
+      return mq.TLO.Raid.MainAssist.Name()
+    end, '')),
     roster = groupRoster(groupMembers),
     ts = tostring(os.time()),
   }
 
   local parts = {}
 
-  for _, key in ipairs({ 'v', 'name', 'macro', 'paused', 'ini', 'group_members', 'leader', 'ma', 'roster', 'ts' }) do
+  for _, key in ipairs({ 'v', 'name', 'macro', 'paused', 'ini', 'group_members', 'leader', 'ma', 'rma', 'roster', 'ts' }) do
     table.insert(parts, key .. '~' .. encode(fields[key]))
   end
 

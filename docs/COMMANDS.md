@@ -47,7 +47,7 @@ Then, after a short delay:
 
 This restart flow is intentional for now because it is predictable and avoids relying on mid-macro profile swapping.
 
-The assist token is resolved from the most specific configured value available: loadout character entry, profile, loadout, then top-level config.
+The assist token is resolved from the header/loadout assist policy. Current supported policies are inherited loadout assist, group MA with fallback, raid MA with fallback, or a specific character.
 
 Choosing `Manual` does not immediately run a command. When `Apply` is clicked, each staged manual target queues:
 
