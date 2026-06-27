@@ -21,6 +21,7 @@ if (-not $luaJitPath) {
 Push-Location $repoRoot
 try {
     $files = @(
+        'lua/ppqka/open.lua',
         'lua/ppqka/ppq_ka_manager.lua',
         'lua/ppqka/ppq_ka_reporter.lua',
         'lua/ppqka/config/ppqka_config_example.lua'

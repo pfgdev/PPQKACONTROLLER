@@ -59,10 +59,16 @@ Your local settings should be present at:
 Then run:
 
 ```text
-/lua run ppqka/ppq_ka_manager
+/lua run ppqka/open
 ```
 
-Stop it with:
+`ppqka/open` starts the manager if needed, or shows the existing hidden window if it is already running. The titlebar `X` hides the window but keeps the manager running. Show it again with:
+
+```text
+/ppqka
+```
+
+Stop it from the UI with `Exit`, or with:
 
 ```text
 /lua stop ppq_ka_manager
@@ -77,7 +83,7 @@ If MacroQuest does not match by basename, use:
 ## First Test
 
 1. Start MacroQuest with Lua and ImGui support loaded.
-2. Run `/lua run ppqka/ppq_ka_manager`.
+2. Run `/lua run ppqka/open`.
 3. Confirm the `PPQ KissAssist Manager` window opens.
 4. Open debug if needed and confirm reporters show as `seen` for peers.
 5. Confirm live EQ groups appear by group leader, with ungrouped peers collected in `Ungrouped`.

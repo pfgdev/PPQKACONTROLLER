@@ -55,3 +55,7 @@
 - Edit profile choices from the UI.
 - Save config changes intentionally.
 - Consider controlled KissAssist INI editing only if explicitly requested.
+
+## Technical Debt
+
+- Split `ppq_ka_manager.lua` into smaller modules or table-backed helper namespaces before adding much more functionality. LuaJIT has a 200-local-variable limit per function/chunk, and the manager is already close enough that small additions can trip syntax checks.

@@ -2834,6 +2834,12 @@ local function drawFooterActions()
       showDebug = not showDebug
     end
 
+    ImGui.SameLine()
+
+    if ImGui.Button('Exit') then
+      terminate = true
+    end
+
     ImGui.TableNextColumn()
     local actionStartX = ImGui.GetCursorPosX()
     ImGui.SetCursorPosX(actionStartX + LOADOUT_RIGHT_WIDTH - actionWidth)
@@ -2844,10 +2850,6 @@ local function drawFooterActions()
 
   if showDebug then
     drawMutedText('Reporter source: PPQKA via DanNet')
-
-    if ImGui.Button('Close Script') then
-      terminate = true
-    end
   end
 end
 
@@ -3036,10 +3038,6 @@ local function render()
 
   isOpen, shouldDraw = ImGui.Begin('PPQ KissAssist Manager', isOpen)
 
-  if not isOpen then
-    terminate = true
-  end
-
   if shouldDraw then
     drawStatusOverview()
     drawFooterActions()
@@ -3068,7 +3066,24 @@ local function render()
   ImGui.End()
 end
 
+function Assist.commandHandler(command)
+  local normalized = string.lower(tostring(command or ''))
+
+  if normalized == 'exit' or normalized == 'quit' or normalized == 'stop' then
+    terminate = true
+    return
+  end
+
+  if normalized == 'hide' then
+    isOpen = false
+    return
+  end
+
+  isOpen = true
+end
+
 mq.imgui.init(SCRIPT_NAME, render)
+mq.bind('/ppqka', Assist.commandHandler)
 refreshDanNetDiscovery()
 startReporters()
 refreshPeerStatusQueries()
@@ -3095,4 +3110,5 @@ while not terminate do
   mq.delay(500)
 end
 
+mq.unbind('/ppqka')
 mq.imgui.destroy(SCRIPT_NAME)

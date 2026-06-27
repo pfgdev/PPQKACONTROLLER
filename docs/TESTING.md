@@ -31,10 +31,16 @@ MacroQuest/config/ppqka_config.lua
 Then run:
 
 ```text
-/lua run ppqka/ppq_ka_manager
+/lua run ppqka/open
 ```
 
-Stop the script with:
+`ppqka/open` starts the manager if needed, or shows the existing hidden window if it is already running. The titlebar `X` hides the window but keeps the manager running. Show it again with:
+
+```text
+/ppqka
+```
+
+Stop the script with the UI `Exit` button or:
 
 ```text
 /lua stop ppq_ka_manager

@@ -4,6 +4,26 @@ This document records the intended command patterns for DanNet and KissAssist co
 
 The current Lua scaffold starts a lightweight reporter on each client, reads its published status through DanNet, and stages target behavior changes locally. `Apply` sends the real per-character commands.
 
+## Manager Window
+
+Run the manager with:
+
+```text
+/lua run ppqka/open
+```
+
+`ppqka/open` starts the manager if needed, or shows the existing hidden window if it is already running. The titlebar `X` hides the window while leaving the manager running. Reopen it with:
+
+```text
+/ppqka
+```
+
+Stop the script with the UI `Exit` button or:
+
+```text
+/ppqka exit
+```
+
 ## Read-Only Status Queries
 
 The manager asks each peer for its reporter payload:
