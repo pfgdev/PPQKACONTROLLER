@@ -59,8 +59,13 @@ local function boolText(value)
 end
 
 local function ensureReporterVariable()
-  mq.cmdf('/if (!${Defined[%s]}) /declare %s string global', REPORTER_VARIABLE, REPORTER_VARIABLE)
-  mq.cmdf('/if (!${Defined[%s]}) /declare %s string global', HEARTBEAT_VARIABLE, HEARTBEAT_VARIABLE)
+  if tostring(mq.parse('${Defined[' .. REPORTER_VARIABLE .. ']}')) ~= 'TRUE' then
+    mq.cmdf('/declare %s string outer ""', REPORTER_VARIABLE)
+  end
+
+  if tostring(mq.parse('${Defined[' .. HEARTBEAT_VARIABLE .. ']}')) ~= 'TRUE' then
+    mq.cmdf('/declare %s string outer "0"', HEARTBEAT_VARIABLE)
+  end
 end
 
 local function readHeartbeat()
